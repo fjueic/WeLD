@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "WeLD"
+version = "0.1.0"
+description = "Web Layered Display"
+authors = [{ name = "Rohit", email = "rohitmalik987789@gmail.com" }]
+dependencies = [
+    "PyGObject",  # for GTK and gi
+    # add others as needed
+]
+requires-python = ">=3.8"
+
+[tool.setuptools]
+packages = ["weld"]  # assumes your code is in a directory named weld/
