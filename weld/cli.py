@@ -32,7 +32,7 @@ def main():
     parser = argparse.ArgumentParser(description="WeLD CLI Tool")
     parser.add_argument(
         "action",
-        choices=CliOptions,
+        choices=[enum.value for enum in CliOptions],
         help="Action to perform on the widget",
     )
     parser.add_argument(

@@ -8,7 +8,9 @@ from typing import Callable, List, Optional
 from pydantic import ValidationError, parse_obj_as
 
 from weld.constants import (
+    CONFIG_FILE,
     INPUT_MASK_JS,
+    PATH_TO_INTERPETER,
     SCRIPT_MESSAGE_HANDLER,
     SCRIPT_MESSAGE_RECEIVED_SIGNAL,
     SOCKET_PATH,
@@ -33,7 +35,6 @@ from weld.type import (
 from weld.type.cli import CliOptions
 from weld.type.payload import ConfigureGTKLayerShellPayloadData
 from weld.utils import (
-    run_cmd,
     run_continuous_cmd,
     run_detached_cmd,
     run_unix_socket_threaded,
@@ -67,7 +68,7 @@ class WidgetWindow(Gtk.Window):
         self.bindings = []
         self.path = os.path.join(WIDGET_DIR, name)
         try:
-            with open(os.path.join(self.path, "config.py"), "r") as f:
+            with open(os.path.join(self.path, CONFIG_FILE), "r") as f:
                 var = {}
                 exec(f.read(), var)
                 if "config" not in var:
@@ -140,8 +141,9 @@ class WidgetWindow(Gtk.Window):
         manager.register_script_message_handler(SCRIPT_MESSAGE_HANDLER)
         manager.connect(SCRIPT_MESSAGE_RECEIVED_SIGNAL, self.on_js_message)
         self.configure_focus(self.config.focus)
-        self.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK)
-        self.connect("motion-notify-event", self.on_mouse_enter)
+        if self.config.inputMask:
+            self.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK)
+            self.connect("motion-notify-event", self.on_mouse_enter)
 
     def hide(self):
         """Hide the window."""
@@ -173,7 +175,6 @@ class WidgetWindow(Gtk.Window):
             return
         if data.name and data.name != self.name:
             return
-        # return
         match data.type:
             case PayloadType.EXEC:
                 if data.script:
@@ -190,9 +191,6 @@ class WidgetWindow(Gtk.Window):
                     log_warning(
                         f"Handler {handler} not found in manual states for widget:{self.name}"
                     )
-                    # self.alert_frontend(
-                    #     f"Handler {handler} not found in config(manual,once,interval) states."
-                    # )
 
             case PayloadType.CLOSE:
                 # self.close()
@@ -224,6 +222,9 @@ class WidgetWindow(Gtk.Window):
                 self.remove_input_mask()
                 log_info(f"Removed input mask: {self.input_mask}")
             case PayloadType.CONFIGURE_FOCUS:
+                if data.focus is None:
+                    log_error("Focus type is None, skipping configuration.")
+                    return
                 self.configure_focus(data.focus)
                 log_info(f"Configured focus: {data.focus}")
             case PayloadType.CONFIGURE_GTK_LAYER_SHELL:
@@ -331,27 +332,31 @@ class WidgetWindow(Gtk.Window):
         for state in self.states:
             set_state = self.get_set_state(state.function)
             set_state("testing")
-            if not state.handler:
-
-                def t(s: str, set_state: Callable[[str], None]):
-                    set_state(s)
-
-                state.handler = t
-
             match state.updateStrategy:
                 case UpdateStrategy.INTERVAL:
+                    if state.interval is None:
+                        log_error(
+                            f"Interval not set for {self.name} with update strategy INTERVAL"
+                        )
+                        continue
                     interval_mil = state.interval
                     interval_seconds = int(interval_mil / 1000)
 
                     def run():
-                        state.handler(run_cmd(state.script), set_state)
+                        # state.handler(run_cmd(state.script), set_state)
+                        run_cmd_non_block(
+                            state.script, lambda res: state.handler(res, set_state)
+                        )
 
                     self.interval_runners.append(set_interval(run, interval_seconds))
                     log_info(
                         f"Set interval for {self.name}: {interval_seconds} seconds"
                     )
                 case UpdateStrategy.ONCE:
-                    state.handler(run_cmd(state.script), set_state)
+                    # state.handler(run_cmd(state.script), set_state)
+                    run_cmd_non_block(
+                        state.script, lambda res: state.handler(res, set_state)
+                    )
                 case UpdateStrategy.CONTINOUS:
 
                     def output_callback(data):
@@ -386,11 +391,7 @@ class WidgetWindow(Gtk.Window):
                     for key, value in args.items():
                         s = s.replace(f"{{{key}}}", value)
 
-                    def callback(res: str):
-                        """Callback to run the state handler."""
-                        state.handler(res, set_state)
-
-                    run_cmd_non_block(s, callback)
+                    run_cmd_non_block(s, lambda res: state.handler(res, set_state))
 
                 self.manual_states[state.function] = state_callback
 
@@ -504,10 +505,10 @@ class BaseWebView(Gtk.Window):
                 widget = self.bindings[key]["widget"]
                 function = self.bindings[key]["function"]
                 bind_event = self.bindings[key]["bind_event"]
-                t += f"bind = '{",".join(bind_event)}','exec','~/code/WeLD/venv/bin/python {PATH_TO_CLI} send {widget} {function}'\n"
+                t += f"bind = '{",".join(bind_event)}','exec','{PATH_TO_INTERPETER} {PATH_TO_CLI} send {widget} {function}'\n"
 
             f.write(convert_code_to_hyprlang(t))
-        run_cmd("hyprctl reload")
+        run_detached_cmd("hyprctl reload")
 
     def _setup_ipc_socket(self):
         if os.path.exists(self.socket_path):

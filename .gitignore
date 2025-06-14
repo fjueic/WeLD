@@ -80,3 +80,4 @@ cython_debug/
 # System files
 Thumbs.db
 desktop.ini
+weld.log

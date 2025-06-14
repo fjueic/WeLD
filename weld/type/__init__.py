@@ -1,6 +1,6 @@
-from weld.type.loader import *
-from weld.type.payload import JSMessage, PayloadType,ConfigureGTKLayerShellPayloadData
-from weld.type.cli import CliOptions
+from .loader import *
+from .payload import JSMessage, PayloadType,ConfigureGTKLayerShellPayloadData
+from .cli import CliOptions
 
 __all__ = [
     "CliOptions",

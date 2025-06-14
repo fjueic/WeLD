@@ -36,7 +36,7 @@ class Config(BaseModel):
     bottom: Optional[int] = None
     left: Optional[int] = None
     right: Optional[int] = None
-    focus: Optional[FocusType] = Field(default=FocusType.ON_DEMAND)
+    focus: FocusType = Field(default=FocusType.ON_DEMAND)
 
 
 class UpdateStrategy(str, Enum):
@@ -53,7 +53,9 @@ class State(BaseModel):
     updateStrategy: UpdateStrategy
     interval: Optional[int] = None
     script: str
-    handler: Callable[[str, Callable[[str], None]], None]
+    handler: Callable[[str, Callable[[str], None]], None] = Field(
+        default=lambda data, setState: setState(data)
+    )
 
     @root_validator(pre=True)
     def check_interval_condition(cls, values):

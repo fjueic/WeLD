@@ -1,5 +1,9 @@
 import os
+import sys
 from importlib.resources import files
+
+PATH_TO_INTERPETER = sys.executable
+CONFIG_FILE = "config.py"
 
 XDG_CONFIG_HOME: str = os.getenv("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
 WIDGET_DIR: str = os.path.join(XDG_CONFIG_HOME, "weld")
@@ -16,15 +20,3 @@ SCRIPT_MESSAGE_RECEIVED_SIGNAL: str = (
 SYNC_DIMENSIONS_JS: str = files("weld.web").joinpath("syncDimensions.js").read_text()
 INPUT_MASK_JS: str = files("weld.web").joinpath("inputMask.js").read_text()
 WELD_BIND: str = os.path.join(XDG_CONFIG_HOME, "hypr", "weld.conf")
-
-
-__all__ = [
-    "XDG_CONFIG_HOME",
-    "WIDGET_DIR",
-    "SOCKET_PATH",
-    "TEXT_ENCODING",
-    "SOURCE_HTML",
-    "SCRIPT_MESSAGE_HANDLER",
-    "SCRIPT_MESSAGE_RECEIVED_SIGNAL",
-    "WELD_BIND",
-]
