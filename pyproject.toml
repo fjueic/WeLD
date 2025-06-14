@@ -10,11 +10,12 @@ authors = [{ name = "Rohit", email = "rohitmalik987789@gmail.com" }]
 dependencies = [
     "PyGObject",
     "pydantic",
+    "loguru",
 ]
 requires-python = ">=3.8"
 
 [tool.setuptools]
-packages = ["weld"]  
+packages = ["weld"]
 
 [project.scripts]
 weldctl = "weld.cli:main"

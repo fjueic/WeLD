@@ -1,10 +1,7 @@
-import gi
 
 from weld.core import BaseWebView, WidgetWindow
+from weld.gi_modules import Gtk
 
-gi.require_version("Gtk", "3.0")
-
-from gi.repository import Gtk
 
 
 def main():

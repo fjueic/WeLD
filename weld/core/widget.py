@@ -486,12 +486,14 @@ class BaseWebView(Gtk.Window):
     socket_path: str
     widgets: dict[str, WidgetWindow]
 
-    def __init__(self):
+    def __init__(self, no_ipc=False):
         super().__init__(title="Base WebView")
         self.view = WebKit2.WebView()
 
         self.socket_path: str = SOCKET_PATH
-        self._setup_ipc_socket()
+
+        if not no_ipc:
+            self._setup_ipc_socket()
         self.widgets = {}
         self.bindings = {}
 
