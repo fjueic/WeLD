@@ -6,7 +6,7 @@ A widget framework for Linux desktops, to render rich UI elements using web tech
 
 ### <div style="color:red">Warning</div>
 **WeLD is in early development.**
-Features are experimental, APIs may break, and documentation is made in one night.
+Features may break, please make issue and I will fix them 😆.
 
 ## Features
 - **Python backend**: Handles state management, widget orchestration
