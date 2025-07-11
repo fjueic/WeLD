@@ -15,6 +15,5 @@ Features may break, please make issue and I will fix them 😆.
 - **Input Masking**: Make part of the widget unresponsive to mouse click and pass the input to below window.
 
 ## Documentation
-[Docs](./wiki/)
-
+[WIKI Page](https://github.com/fjueic/WeLD/wiki)
 
