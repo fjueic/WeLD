@@ -35,7 +35,7 @@ class JSMessage(BaseModel):
     height: Optional[int] = None
     width: Optional[int] = None
     masks: Optional[List[Tuple[float, float, float, float]]] = None
-    function: Optional[str] = None
+    event: Optional[str] = None
     focus: Optional[FocusType] = Field(default=FocusType.ON_DEMAND)
     config_layer: Optional[ConfigureGTKLayerShellPayloadData] = None
     args: Optional[dict[str, str]] = {}

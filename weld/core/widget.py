@@ -7,7 +7,7 @@ from typing import Callable, List, Optional
 
 from pydantic import ValidationError, parse_obj_as
 
-from weld.constants import (
+from ..constants import (
     CONFIG_FILE,
     INPUT_MASK_JS,
     PATH_TO_INTERPETER,
@@ -20,11 +20,13 @@ from weld.constants import (
     WELD_BIND,
     WIDGET_DIR,
 )
-from weld.gi_modules import Gdk, GLib, Gtk, GtkLayerShell, WebKit2
-from weld.log import log_debug, log_error, log_exception, log_info, log_warning
-from weld.type import (
+from ..gi_modules import Gdk, GLib, Gtk, GtkLayerShell, WebKit2
+from ..log import log_debug, log_error, log_exception, log_info, log_warning
+from ..type import (
     AnchorType,
+    CliOptions,
     Config,
+    ConfigureGTKLayerShellPayloadData,
     FocusType,
     JSMessage,
     LayerType,
@@ -32,15 +34,13 @@ from weld.type import (
     State,
     UpdateStrategy,
 )
-from weld.type.cli import CliOptions
-from weld.type.payload import ConfigureGTKLayerShellPayloadData
-from weld.utils import (
+from ..utils import (
+    run_cmd_non_block,
     run_continuous_cmd,
     run_detached_cmd,
     run_unix_socket_threaded,
     set_interval,
 )
-from weld.utils.data_fetching import run_cmd_non_block
 
 
 class WidgetWindow(Gtk.Window):
@@ -95,12 +95,12 @@ class WidgetWindow(Gtk.Window):
                     log_warning(f"No states found for {self.name}.")
                 if "binds" in var:
                     for bind in var["binds"]:
-                        self.base_webview.bindings[self.name + bind["function"]] = {
+                        self.base_webview.bindings[self.name + bind["event"]] = {
                             "widget": self.name,
-                            "function": bind["function"],
+                            "event": bind["event"],
                             "bind_event": bind["bind_event"],
                         }
-                        self.bindings.append(self.name + bind["function"])
+                        self.bindings.append(self.name + bind["event"])
                         print(self.base_webview.bindings)
                     self.base_webview.refresh_binds()
 
@@ -135,7 +135,13 @@ class WidgetWindow(Gtk.Window):
         self.base_webview.widgets[name] = self
         self.show_all()
         self.connect("destroy", self.close)
-        self.set_window_transparency()
+        if self.config.width or self.config.height:
+            self.view.set_size_request(
+                self.config.width or -1, self.config.height or -1
+            )
+
+        if self.config.transparency:
+            self.set_window_transparency()
         self.view.connect("load-changed", self.after_load)
         manager = self.view.get_user_content_manager()
         manager.register_script_message_handler(SCRIPT_MESSAGE_HANDLER)
@@ -181,7 +187,7 @@ class WidgetWindow(Gtk.Window):
                     log_info(f"Executing script: {data.script}")
                     run_detached_cmd(data.script)
             case PayloadType.MANUAL_STATE_UPDATE:
-                handler = data.function
+                handler = data.event
                 if handler in self.manual_states:
                     if data.args is not None:
                         self.manual_states[handler](data.args)
@@ -330,7 +336,7 @@ class WidgetWindow(Gtk.Window):
 
     def state_callback(self):
         for state in self.states:
-            set_state = self.get_set_state(state.function)
+            set_state = self.get_set_state(state.event)
             set_state("testing")
             match state.updateStrategy:
                 case UpdateStrategy.INTERVAL:
@@ -393,7 +399,7 @@ class WidgetWindow(Gtk.Window):
 
                     run_cmd_non_block(s, lambda res: state.handler(res, set_state))
 
-                self.manual_states[state.function] = state_callback
+                self.manual_states[state.event] = state_callback
 
     def execute_script(self, script: str):
         """Execute a JavaScript script in the WebView."""
@@ -459,8 +465,12 @@ class WidgetWindow(Gtk.Window):
         """
 
         def state_updater(data: str):
+            try:
+                data = json.loads(data)
+            except json.JSONDecodeError:
+                pass
             script = f"""
-            window.{function}(`{data.strip()}`);
+            window.dispatchEvent(new CustomEvent("weld:{function}",{json.dumps({"detail":data})}));
             """
             self.execute_script(script)
 
@@ -476,7 +486,7 @@ class WidgetWindow(Gtk.Window):
             return
         s = f"""
             if(window.name === '{self.name}')
-            window.{event}();
+            window.dispatchEvent(new CustomEvent("weld:{event}"));
             """
         self.execute_script(s)
 
@@ -498,18 +508,22 @@ class BaseWebView(Gtk.Window):
         self.bindings = {}
 
     def refresh_binds(self):
-        from weld.cli import PATH_TO_CLI
+        from weld.cli import SOCKET_PATH
         from weld.Hyprlang import convert_code_to_hyprlang
 
         with open(WELD_BIND, "w") as f:
-            t = "# Auto generated by weld\n"
+            t = ""
             for key in self.bindings:
                 widget = self.bindings[key]["widget"]
-                function = self.bindings[key]["function"]
+                event = self.bindings[key]["event"]
                 bind_event = self.bindings[key]["bind_event"]
-                t += f"bind = '{",".join(bind_event)}','exec','{PATH_TO_INTERPETER} {PATH_TO_CLI} send {widget} {function}'\n"
+                t += (
+                    f"bind = '{','.join(bind_event)}','exec',"
+                    + f"r\"\"\"echo '{json.dumps({'action': 'send', 'widget': widget, 'bind_event': event})}' | socat - UNIX-CONNECT:{SOCKET_PATH}\"\"\"\n"
+                )
 
-            f.write(convert_code_to_hyprlang(t))
+            print(t)
+            f.write("# Auto generated by weld\n" + convert_code_to_hyprlang(t))
         run_detached_cmd("hyprctl reload")
 
     def _setup_ipc_socket(self):
@@ -558,7 +572,6 @@ class BaseWebView(Gtk.Window):
                                 )
                             else:
                                 widget_window = WidgetWindow(widget_name, self)
-                                widget_window.show()
                                 response = json.dumps(
                                     {
                                         "status": "success",
@@ -589,7 +602,6 @@ class BaseWebView(Gtk.Window):
                             if widget_name in self.widgets:
                                 self.widgets[widget_name].close()
                             widget_window = WidgetWindow(widget_name, self)
-                            widget_window.show()
                             response = json.dumps(
                                 {
                                     "status": "success",

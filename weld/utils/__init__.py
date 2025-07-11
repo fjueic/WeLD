@@ -1,5 +1,6 @@
 from .data_fetching import (
     run_cmd,
+    run_cmd_non_block,
     run_continuous_cmd,
     run_detached_cmd,
     run_unix_socket_threaded,
@@ -12,4 +13,5 @@ __all__ = [
     "set_interval",
     "run_unix_socket_threaded",
     "run_detached_cmd",
+    "run_cmd_non_block",
 ]

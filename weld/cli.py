@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import socket
+import sys
 
 from weld.constants import SOCKET_PATH, TEXT_ENCODING
 from weld.type.cli import CliOptions
@@ -73,6 +74,5 @@ def main():
 
 
 if __name__ == "__main__":
-    import sys
 
     main()

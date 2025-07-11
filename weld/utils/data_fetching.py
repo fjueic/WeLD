@@ -3,9 +3,9 @@ import subprocess
 import threading
 from typing import Callable
 
-from gi_modules import GLib, Gtk, WebKit2
+from ..gi_modules import GLib, Gtk, WebKit2
 
-from weld.constants import SOCKET_PATH, TEXT_ENCODING
+from ..constants import SOCKET_PATH, TEXT_ENCODING
 
 
 def run_cmd_non_block(cmd: str, callback: Callable[[str], None]) -> None:

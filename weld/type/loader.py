@@ -37,19 +37,22 @@ class Config(BaseModel):
     left: Optional[int] = None
     right: Optional[int] = None
     focus: FocusType = Field(default=FocusType.ON_DEMAND)
+    height: Optional[int] = None
+    width: Optional[int] = None
+    transparency: Optional[bool] = False
 
 
 class UpdateStrategy(str, Enum):
     MANUAL = "manual"
     ONCE = "once"
     INTERVAL = "interval"
-    CONTINOUS = "continous"
+    CONTINOUS = "continuous"
     IPC = "ipc"
     DBUS = "dbus"
 
 
 class State(BaseModel):
-    function: str
+    event: str
     updateStrategy: UpdateStrategy
     interval: Optional[int] = None
     script: str
