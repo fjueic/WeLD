@@ -20,6 +20,3 @@ packages = ["weld"]
 [project.scripts]
 weldctl = "weld.cli:main"
 weld = "weld:main"
-
-[tool.setuptools.packages.find]
-include = ["weld*"]
