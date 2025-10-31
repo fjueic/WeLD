@@ -14,8 +14,8 @@ dependencies = [
 ]
 requires-python = ">=3.8"
 
-[tool.setuptools]
-packages = ["weld"]
+[tool.setuptools.packages.find]
+include = ["weld*"]
 
 [project.scripts]
 weldctl = "weld.cli:main"
