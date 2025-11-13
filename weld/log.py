@@ -28,11 +28,25 @@ logger.add(
     + " | {level} | {name}:{function}:{line} - {message}",
 )
 
-def log_info(msg: str): logger.info(msg)
-def log_debug(msg: str): logger.debug(msg)
-def log_warning(msg: str): logger.warning(msg)
-def log_error(msg: str): logger.error(msg)
-def log_exception(msg: str): logger.exception(msg)
+def log_info(msg: str):
+    logger.info(msg)
+
+
+def log_debug(msg: str):
+    logger.debug(msg)
+
+
+def log_warning(msg: str):
+    logger.warning(msg)
+
+
+def log_error(msg: str):
+    logger.error(msg)
+
+
+def log_exception(msg: str):
+    logger.exception(msg)
+
 
 __all__ = [
     "log_info",
