@@ -1,6 +1,6 @@
-from .loader import *
-from .payload import JSMessage, PayloadType,ConfigureGTKLayerShellPayloadData
 from .cli import CliOptions
+from .loader import *
+from .payload import ConfigureGTKLayerShellPayloadData, JSMessage, PayloadType
 
 __all__ = [
     "CliOptions",
@@ -12,5 +12,5 @@ __all__ = [
     "UpdateStrategy",
     "JSMessage",
     "PayloadType",
-    "ConfigureGTKLayerShellPayloadData"
+    "ConfigureGTKLayerShellPayloadData",
 ]

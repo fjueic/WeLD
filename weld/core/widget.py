@@ -386,6 +386,23 @@ class WidgetWindow(Gtk.Window):
                     log_info(
                         f"Set IPC (dbus) for {self.name}: {state.script} not implemented"
                     )
+                case UpdateStrategy.SERVICE:
+                    if not state.service_factory:
+                        log_error(
+                            f"Strategy is SERVICE but 'service_factory' is missing for {state.event}"
+                        )
+                        continue
+                    try:
+                        # 1. Create the service instance
+                        instance = state.service_factory(set_state)
+                        # 2. Start it and get the stop callback
+                        stop_callback, handlers = instance.start()
+                        # 3. Add the stop callback to your existing lifecycle list
+                        self.processes.append(stop_callback)
+                        self.manual_states.update(handlers)
+                        log_info(f"Started service {state.event}")
+                    except Exception as e:
+                        log_exception(f"Failed to start service {state.event}: {e}")
             if state.updateStrategy in [
                 UpdateStrategy.MANUAL,
                 UpdateStrategy.ONCE,
@@ -472,7 +489,7 @@ class WidgetWindow(Gtk.Window):
             script = f"""
             window.dispatchEvent(new CustomEvent("weld:{function}",{json.dumps({"detail":data})}));
             """
-            self.execute_script(script)
+            GLib.idle_add(self.execute_script, script)
 
         return state_updater
 
