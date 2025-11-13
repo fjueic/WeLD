@@ -49,16 +49,18 @@ class UpdateStrategy(str, Enum):
     CONTINOUS = "continuous"
     IPC = "ipc"
     DBUS = "dbus"
+    SERVICE = "service"
 
 
 class State(BaseModel):
     event: str
     updateStrategy: UpdateStrategy
     interval: Optional[int] = None
-    script: str
+    script: Optional[str] = None
     handler: Callable[[str, Callable[[str], None]], None] = Field(
         default=lambda data, setState: setState(data)
     )
+    service_factory: Optional[Callable] = None
 
     @root_validator(pre=True)
     def check_interval_condition(cls, values):

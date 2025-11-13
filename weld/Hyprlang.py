@@ -463,67 +463,6 @@ def main(args, alias):
         del sleep
         return
 
-    """
-    observers= []
-    for file in args:
-        files = convert_to_hyprlang(file, alias)
-        observers.append({
-            "file": file,
-            "dependencies": files,
-            "observers": []
-        })
-        dir_to_watch = set()
-        for file in files:
-            dir_to_watch.add(path.dirname(path.expanduser(file)))
-        for directory in dir_to_watch:
-            if not path.exists(directory):
-                continue
-            from watchdog.events import FileSystemEventHandler
-            from watchdog.observers import Observer
-            class Handler(FileSystemEventHandler):
-                def on_modified(self, event):
-                    global flag
-                    if flag:
-                        return
-                    flag = True
-                    if event.is_directory:
-                        return
-                    for i in range(len(observers)):
-                        if event.src_path in observers[i]["dependencies"]:
-                            for observer in observers[i]["observers"]:
-                                observer.stop()
-                                # observer.join()
-                            while 1:
-                                try:
-                                    files = convert_to_hyprlang(observers[i]["file"], alias)
-                                    break
-                                except Exception as e:
-                                    send_notification(f"Error in {observers[i]['file']}: {e}.\nRETRY IN 10 sec", "critical")
-                                    from time import sleep
-                                    sleep(10)
-                                    del sleep
-                            observers[i]["dependencies"] = files
-                            dir_to_watch = set()
-                            for file in observers[i]["dependencies"]:
-                                dir_to_watch.add(path.dirname(path.expanduser(file)))
-                            for directory in dir_to_watch:
-                                if not path.exists(directory):
-                                    continue
-                                observers[i]["observers"].append(Observer())
-                                observers[i]["observers"][-1].schedule(Handler(), path=directory, recursive=False)
-                                observers[i]["observers"][-1].start()
-                    flag = False
-
-                                
-                                
-            observers[-1]["observers"].append(Observer())
-            observers[-1]["observers"][-1].schedule(Handler(), path=directory, recursive=False)
-            observers[-1]["observers"][-1].start()
-
-    from time import sleep
-    sleep(10**9)
-        """
-
 
 if __name__ == "__main__":
     alias = {

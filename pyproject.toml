@@ -17,11 +17,23 @@ dependencies = [
     "PyGObject",
     "pydantic",
     "loguru",
+    "dbus-python",
 ]
 requires-python = ">=3.8"
 
+
+[project.optional-dependencies]
+dev = [
+    "black",
+]
+
 [tool.setuptools.packages.find]
 include = ["weld*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+skip-string-normalization = true
 
 [project.scripts]
 weldctl = "weld.cli:main"
