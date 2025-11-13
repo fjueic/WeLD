@@ -28,6 +28,7 @@ logger.add(
     + " | {level} | {name}:{function}:{line} - {message}",
 )
 
+
 def log_info(msg: str):
     logger.info(msg)
 
