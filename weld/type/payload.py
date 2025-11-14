@@ -7,7 +7,6 @@ from .loader import AnchorType, FocusType, LayerType
 
 
 class PayloadType(str, Enum):
-    EXEC = "exec"
     MANUAL_STATE_UPDATE = "manual_state_update"
     CLOSE = "close"
     SYNC_DIMENSION = "syncDimension"

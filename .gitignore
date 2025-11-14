@@ -81,3 +81,4 @@ cython_debug/
 Thumbs.db
 desktop.ini
 weld.log
+weld/bin/*

@@ -182,10 +182,6 @@ class WidgetWindow(Gtk.Window):
         if data.name and data.name != self.name:
             return
         match data.type:
-            case PayloadType.EXEC:
-                if data.script:
-                    log_info(f"Executing script: {data.script}")
-                    run_detached_cmd(data.script)
             case PayloadType.MANUAL_STATE_UPDATE:
                 handler = data.event
                 if handler in self.manual_states:
