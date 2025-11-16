@@ -61,6 +61,7 @@ class State(BaseModel):
         default=lambda data, setState: setState(data)
     )
     service_factory: Optional[Callable] = None
+    service_arguments: Optional[dict] = None
 
     @root_validator(pre=True)
     def check_interval_condition(cls, values):

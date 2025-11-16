@@ -18,6 +18,7 @@ class WeLDService(ABC):
         :param setState: The thread-safe B->F (Python to JS) function.
                          Call this from any thread to send data to the frontend.
                          Use this to update the widget state(s).
+        :param arguments: Additional arguments for user-defined things.
         """
 
         self._setState = setState

@@ -1,0 +1,230 @@
+<html>
+  <head>
+    <style>
+      :root {
+        --color-fg: #f1f1f1;
+        --color-bg: rgba(20, 20, 20, 0.7);
+        --color-label: #a6adc8;
+        --color-charging: #89b4fa;
+        --color-discharging: #f9e2af;
+      }
+
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-weight: 500;
+        color: var(--color-fg);
+        background: var(--color-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 12px 16px;
+        box-sizing: border-box;
+        min-width: 220px;
+      }
+
+      #container {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      h3 {
+        text-align: center;
+        margin: 0 0 8px 0;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--color-label);
+      }
+
+      .row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.9em;
+      }
+
+      .row label {
+        color: var(--color-label);
+        margin-right: 12px;
+      }
+
+      .row span {
+        font-weight: 600;
+      }
+
+      #container.charging {
+        color: var(--color-charging);
+      }
+      #container.discharging {
+        color: var(--color-discharging);
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="container">
+      <h3>AstalBattery Test</h3>
+
+      <div class="row" id="row-present" style="display: none">
+        <label>Present:</label>
+        <span id="val-present"></span>
+      </div>
+      <div class="row" id="row-charging" style="display: none">
+        <label>Charging:</label>
+        <span id="val-charging"></span>
+      </div>
+      <div class="row" id="row-state" style="display: none">
+        <label>State:</label>
+        <span id="val-state"></span>
+      </div>
+      <div class="row" id="row-percentage" style="display: none">
+        <label>Percentage:</label>
+        <span id="val-percentage"></span>
+      </div>
+      <div class="row" id="row-timeToEmpty" style="display: none">
+        <label>Time to Empty:</label>
+        <span id="val-timeToEmpty"></span>
+      </div>
+      <div class="row" id="row-timeToFull" style="display: none">
+        <label>Time to Full:</label>
+        <span id="val-timeToFull"></span>
+      </div>
+      <div class="row" id="row-energy" style="display: none">
+        <label>Energy (Wh):</label>
+        <span id="val-energy"></span>
+      </div>
+      <div class="row" id="row-energyFull" style="display: none">
+        <label>Energy Full (Wh):</label>
+        <span id="val-energyFull"></span>
+      </div>
+      <div class="row" id="row-energyRate" style="display: none">
+        <label>Energy Rate (W):</label>
+        <span id="val-energyRate"></span>
+      </div>
+      <div class="row" id="row-icon" style="display: none">
+        <label>Icon Name:</label>
+        <span id="val-icon"></span>
+      </div>
+    </div>
+
+    <script>
+      const el = {
+        container: document.getElementById("container"),
+        // Get all the rows
+        rows: {
+          present: document.getElementById("row-present"),
+          icon: document.getElementById("row-icon"),
+          percentage: document.getElementById("row-percentage"),
+          charging: document.getElementById("row-charging"),
+          timeToEmpty: document.getElementById("row-timeToEmpty"),
+          timeToFull: document.getElementById("row-timeToFull"),
+          energy: document.getElementById("row-energy"),
+          energyFull: document.getElementById("row-energyFull"),
+          energyRate: document.getElementById("row-energyRate"),
+          state: document.getElementById("row-state"),
+        },
+        // Get all the value spans
+        values: {
+          present: document.getElementById("val-present"),
+          icon: document.getElementById("val-icon"),
+          percentage: document.getElementById("val-percentage"),
+          charging: document.getElementById("val-charging"),
+          timeToEmpty: document.getElementById("val-timeToEmpty"),
+          timeToFull: document.getElementById("val-timeToFull"),
+          energy: document.getElementById("val-energy"),
+          energyFull: document.getElementById("val-energyFull"),
+          energyRate: document.getElementById("val-energyRate"),
+          state: document.getElementById("val-state"),
+        },
+      };
+
+      /**
+       * Helper function to format seconds into a "Xh Ym" string.
+       */
+      function formatTime(totalSeconds) {
+        if (
+          totalSeconds === 0 ||
+          totalSeconds === undefined ||
+          totalSeconds === null
+        ) {
+          return "N/A";
+        }
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        if (hours > 0) {
+          return `${hours}h ${minutes}m`;
+        }
+        return `${minutes}m`;
+      }
+
+      window.addEventListener("weld:battery", (event) => {
+        const state = event.detail;
+
+        if (state.present === false) {
+          el.container.style.display = "none";
+          return;
+        } else {
+          el.container.style.display = "flex";
+        }
+
+        if (state.charging === true) {
+          el.container.classList.add("charging");
+          el.container.classList.remove("discharging");
+        } else if (state.charging === false) {
+          el.container.classList.remove("charging");
+          el.container.classList.add("discharging");
+        }
+
+        if (state.present !== undefined) {
+          el.rows.present.style.display = "flex";
+          el.values.present.textContent = state.present ? "Yes" : "No";
+        }
+
+        if (state.icon !== undefined) {
+          el.rows.icon.style.display = "flex";
+          el.values.icon.textContent = state.icon;
+        }
+
+        if (state.percentage !== undefined) {
+          el.rows.percentage.style.display = "flex";
+          el.values.percentage.textContent = `${state.percentage}%`;
+        }
+
+        if (state.charging !== undefined) {
+          el.rows.charging.style.display = "flex";
+          el.values.charging.textContent = state.charging ? "Yes" : "No";
+        }
+
+        if (state.state !== undefined) {
+          el.rows.state.style.display = "flex";
+          el.values.state.textContent = state.state;
+        }
+
+        if (state.timeToEmpty !== undefined) {
+          el.rows.timeToEmpty.style.display = "flex";
+          el.values.timeToEmpty.textContent = formatTime(state.timeToEmpty);
+        }
+
+        if (state.timeToFull !== undefined) {
+          el.rows.timeToFull.style.display = "flex";
+          el.values.timeToFull.textContent = formatTime(state.timeToFull);
+        }
+
+        if (state.energy !== undefined) {
+          el.rows.energy.style.display = "flex";
+          el.values.energy.textContent = state.energy?.toFixed(2) ?? "N/A";
+        }
+
+        if (state.energyFull !== undefined) {
+          el.rows.energyFull.style.display = "flex";
+          el.values.energyFull.textContent =
+            state.energyFull?.toFixed(2) ?? "N/A";
+        }
+
+        if (state.energyRate !== undefined) {
+          el.rows.energyRate.style.display = "flex";
+          el.values.energyRate.textContent =
+            state.energyRate?.toFixed(2) ?? "N/A";
+        }
+      });
+    </script>
+  </body>
+</html>

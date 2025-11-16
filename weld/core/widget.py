@@ -426,11 +426,10 @@ class WidgetWindow(Gtk.Window):
                         )
                         continue
                     try:
-                        # 1. Create the service instance
-                        instance = state.service_factory(set_state)
-                        # 2. Start it and get the stop callback
+                        instance = state.service_factory(
+                            set_state, state.service_arguments
+                        )
                         stop_callback, handlers = instance.start()
-                        # 3. Add the stop callback to your existing lifecycle list
                         self.processes.append(stop_callback)
                         self.manual_states.update(handlers)
                         log_info(f"Started service {state.event}")
