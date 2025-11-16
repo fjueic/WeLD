@@ -82,3 +82,8 @@ Thumbs.db
 desktop.ini
 weld.log
 weld/bin/*
+
+# Links
+weld/gi-stubs/gi/repository/Gdk.pyi
+weld/gi-stubs/gi/repository/GLib.pyi
+weld/gi-stubs/gi/repository/Gtk.pyi

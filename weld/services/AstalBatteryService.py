@@ -6,9 +6,14 @@ import json
 import math
 from typing import Any, Callable, Dict, Tuple
 
-from ..gi_modules import AstalBattery, GLib
-from ..log import log_info
+import gi
+
+from ..gi_modules import GLib
+from ..log import log_error, log_info
 from .base import WeLDService
+
+gi.require_version("AstalBattery", "0.1")
+from gi.repository import AstalBattery
 
 
 class AstalBatteryService(WeLDService):

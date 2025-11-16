@@ -9,4 +9,3 @@ class CliOptions(str, Enum):
     RESTART = "restart"
     LIST_ACTIVE = "listactive"
     SEND = "send"
-    INSTALL_SENDER = "install_sender"

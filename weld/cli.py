@@ -4,7 +4,6 @@ import os
 import socket
 import sys
 
-from weld.c.install import _install_weld_sender
 from weld.constants import SOCKET_PATH, TEXT_ENCODING
 from weld.type.cli import CliOptions
 
@@ -49,14 +48,6 @@ def main():
     )
 
     args = parser.parse_args()
-
-    if args.action == CliOptions.INSTALL_SENDER:
-        if _install_weld_sender():
-            print("weld-sender installed successfully.")
-            sys.exit(0)
-        else:
-            print("Failed to install weld-sender.", file=sys.stderr)
-            sys.exit(1)
 
     if args.action not in ["list", "listactive"] and not args.widget:
         parser.error(f"The '{args.action}' action requires a widget name.")

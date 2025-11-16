@@ -1,0 +1,1 @@
+../../../../venv/lib/python3.13/site-packages/gi-stubs/repository/WebKit2.pyi

@@ -28,6 +28,7 @@ requires-python = ">=3.8"
 [project.optional-dependencies]
 dev = [
     "black",
+    "pygobject-stubs",
 ]
 
 [tool.setuptools.packages.find]
@@ -37,6 +38,13 @@ include = ["weld*"]
 line-length = 88
 target-version = ['py311']
 skip-string-normalization = true
+
+[tool.pyright]
+stubPath = "weld/gi-stubs"
+reportMissingModuleSource = false
+extraPaths = [
+    "venv/lib/python3.13/site-packages/gi-stubs"
+]
 
 [project.scripts]
 weldctl = "weld.cli:main"

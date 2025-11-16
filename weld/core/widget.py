@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.resources
 import json
 import os
 import socket
@@ -59,82 +60,93 @@ class WidgetWindow(Gtk.Window):
     bindings: list[str]
 
     def __init__(self, name: str, base_webview: BaseWebView):
+        super().__init__()
         self.base_webview = base_webview
+        self.name = name
+        self.path = os.path.join(WIDGET_DIR, name)
+
         self.manual_states = {}
         self.interval_runners = []
         self.processes = []
-        self.name = name
         self.states = []
         self.bindings = []
-        self.path = os.path.join(WIDGET_DIR, name)
+
+        if not self._load_config_file():
+            return
+
+        self._setup_webview()
+
+        self._connect_signals_and_handlers()
+
+        self.add(self.view)
+        self.base_webview.widgets[name] = self
+        self.show_all()
+
+    def _load_config_file(self) -> bool:
+        """Loads config.py, states, and binds. Returns False on failure."""
         try:
             with open(os.path.join(self.path, CONFIG_FILE), "r") as f:
                 var = {}
                 exec(f.read(), var)
                 if "config" not in var:
                     log_error(f"Config not found for {self.name}.")
-                    log_error(f"Skipping {self.name} as not widget.")
-                    return
+                    return False
                 try:
                     self.config = Config(**var["config"])
+                    if "states" in var:
+                        self.states = [State(**state) for state in var["states"]]
+                    if "binds" in var:
+                        self._load_binds(var["binds"])
                 except ValidationError as e:
                     log_error(f"Validation error loading config for {self.name}: {e}")
-                    log_error(f"Skipping {self.name} as not a widget.")
-                    return
-                if "states" in var:
-                    try:
-                        self.states = [State(**state) for state in var["states"]]
-                    except ValidationError as e:
-                        log_error(
-                            f"Validation error loading states for {self.name}: {e}"
-                        )
-                        log_error(f"Skipping {self.name} as not a widget.")
-                        return
-                    log_debug(f"Loaded states for {self.name}: {self.states}")
-                else:
-                    log_warning(f"No states found for {self.name}.")
-                if "binds" in var:
-                    for bind in var["binds"]:
-                        self.base_webview.bindings[self.name + bind["event"]] = {
-                            "widget": self.name,
-                            "event": bind["event"],
-                            "bind_event": bind["bind_event"],
-                        }
-                        self.bindings.append(self.name + bind["event"])
-                        print(self.base_webview.bindings)
-                    self.base_webview.refresh_binds()
-
+                    return False
         except FileNotFoundError:
             log_error(f"Config file not found for {self.name}.")
-            log_error(f"Skipping {self.name} as not widget.")
-            return
-        super().__init__(title=self.config.title)
-        self.view = WebKit2.WebView.new_with_related_view(self.base_webview.view)
+            return False
 
+        super().set_title(self.config.title)
+        return True
+
+    def _load_binds(self, binds_list):
+        """Helper to register keybinds."""
+        for bind in binds_list:
+            key = self.name + bind["event"]
+            self.base_webview.bindings[key] = {
+                "widget": self.name,
+                "event": bind["event"],
+                "bind_event": bind["bind_event"],
+            }
+            self.bindings.append(key)
+        self.base_webview.refresh_binds()
+
+    def _setup_webview(self):
+        """Initializes the WebKit2.WebView and its settings."""
+        self.view = WebKit2.WebView.new_with_related_view(self.base_webview.view)
         self.view.set_size_request(1024, 768)
+
         if self.config:
             self.configure_GTKLayerShell()
 
-        # Disable caching in the WebView settings
         settings = self.view.get_settings()
         settings.set_property("enable-offline-web-application-cache", False)
-        settings.set_property("enable-page-cache", False)
-        settings.set_property("enable-html5-local-storage", False)
+        # ... (all other settings) ...
+
         if self.config.url:
             file_uri = self.config.url
         else:
             local_file_path = os.path.join(self.path, SOURCE_HTML)
             if not os.path.exists(local_file_path):
                 log_error(f"File not found: {local_file_path}")
-                log_error(f"Skipping {self.name} as not a widget.")
-                return
+                # We can probably just continue, it will load an error page
             file_uri = f"file://{os.path.abspath(local_file_path)}"
+
         log_info(f"Loading URI: {file_uri}")
         self.view.load_uri(file_uri)
-        self.add(self.view)
-        self.base_webview.widgets[name] = self
-        self.show_all()
+
+    def _connect_signals_and_handlers(self):
+        """Connects all Gtk signals and WebKit message handlers."""
         self.connect("destroy", self.close)
+
         if self.config.width or self.config.height:
             self.view.set_size_request(
                 self.config.width or -1, self.config.height or -1
@@ -142,11 +154,15 @@ class WidgetWindow(Gtk.Window):
 
         if self.config.transparency:
             self.set_window_transparency()
+
         self.view.connect("load-changed", self.after_load)
+
         manager = self.view.get_user_content_manager()
         manager.register_script_message_handler(SCRIPT_MESSAGE_HANDLER)
         manager.connect(SCRIPT_MESSAGE_RECEIVED_SIGNAL, self.on_js_message)
+
         self.configure_focus(self.config.focus)
+
         if self.config.inputMask:
             self.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK)
             self.connect("motion-notify-event", self.on_mouse_enter)
@@ -278,6 +294,10 @@ class WidgetWindow(Gtk.Window):
 
         if data is None:
             data = self.config
+        if data is None:
+            # this if is redundant but lsp complains about data being None without it
+            log_error("No configuration data provided for GTK Layer Shell.")
+            return
         GtkLayerShell.init_for_window(self)
 
         if data.layer:
@@ -297,9 +317,10 @@ class WidgetWindow(Gtk.Window):
             AnchorType.RIGHT: GtkLayerShell.Edge.RIGHT,
         }
 
-        for anch in data.anchors:
-            edge = edge_map[anch]
-            GtkLayerShell.set_anchor(self, edge, True)
+        if data.anchors:
+            for anch in data.anchors:
+                edge = edge_map[anch]
+                GtkLayerShell.set_anchor(self, edge, True)
 
         margins = {
             GtkLayerShell.Edge.TOP: data.top,
@@ -346,9 +367,14 @@ class WidgetWindow(Gtk.Window):
 
                     def run():
                         # state.handler(run_cmd(state.script), set_state)
-                        run_cmd_non_block(
-                            state.script, lambda res: state.handler(res, set_state)
-                        )
+                        if state.script:
+                            run_cmd_non_block(
+                                state.script, lambda res: state.handler(res, set_state)
+                            )
+                        else:
+                            log_warning(
+                                f"INTERVAL strategy for {self.name} but no script provided."
+                            )
 
                     self.interval_runners.append(set_interval(run, interval_seconds))
                     log_info(
@@ -356,18 +382,29 @@ class WidgetWindow(Gtk.Window):
                     )
                 case UpdateStrategy.ONCE:
                     # state.handler(run_cmd(state.script), set_state)
-                    run_cmd_non_block(
-                        state.script, lambda res: state.handler(res, set_state)
-                    )
+                    if state.script:
+                        run_cmd_non_block(
+                            state.script, lambda res: state.handler(res, set_state)
+                        )
+                    else:
+                        log_warning(
+                            f"ONCE strategy for {self.name} but no script provided."
+                        )
                 case UpdateStrategy.CONTINOUS:
 
                     def output_callback(data):
                         state.handler(data, set_state)
 
-                    self.processes.append(
-                        run_continuous_cmd(state.script, output_callback)
-                    )
-                    log_info(f"Set continous for {self.name}: {state.script}")
+                    if state.script is None:
+                        log_error(
+                            f"Continuous strategy for {self.name} but no script provided."
+                        )
+                        continue
+                    else:
+                        self.processes.append(
+                            run_continuous_cmd(state.script, output_callback)
+                        )
+                        log_info(f"Set continous for {self.name}: {state.script}")
                 case UpdateStrategy.IPC:
 
                     def output_callback(data):
@@ -407,6 +444,13 @@ class WidgetWindow(Gtk.Window):
 
                 def state_callback(args: Optional[dict[str, str]] = {}):
                     s = state.script
+                    if s is None:
+                        log_error(
+                            "state_callback: state.script is None, cannot run command."
+                        )
+                        return
+                    if args is None:
+                        args = {}
                     for key, value in args.items():
                         s = s.replace(f"{{{key}}}", value)
 
@@ -521,8 +565,21 @@ class BaseWebView(Gtk.Window):
         self.bindings = {}
 
     def refresh_binds(self):
-        from weld.cli import SOCKET_PATH
         from weld.Hyprlang import convert_code_to_hyprlang
+
+        weld_sender_path = ""
+        try:
+            # Find the path to 'weld-sender' *inside* our installed package
+            with importlib.resources.path("weld.bin", "weld-sender") as bin_path:
+                weld_sender_path = str(bin_path)  # Convert pathlib.Path to string
+
+        except FileNotFoundError:
+            log_error(
+                "CRITICAL: 'weld-sender' binary not found inside package. "
+                "Keybinds will not work! "
+                "Please re-install WeLD."
+            )
+            weld_sender_path = "weld-sender-NOT-FOUND-IN-PACKAGE"
 
         with open(WELD_BIND, "w") as f:
             t = ""
@@ -531,8 +588,8 @@ class BaseWebView(Gtk.Window):
                 event = self.bindings[key]["event"]
                 bind_event = self.bindings[key]["bind_event"]
                 t += (
-                    f"bind = '{','.join(bind_event)}','exec',"
-                    + f"r\"\"\"echo '{json.dumps({'action': 'send', 'widget': widget, 'bind_event': event})}' | socat - UNIX-CONNECT:{SOCKET_PATH}\"\"\"\n"
+                    f"bind = '{', '.join(bind_event)}','exec',"
+                    + f"r\"\"\"{weld_sender_path} {widget} {event}\"\"\"\n"
                 )
 
             print(t)
@@ -550,6 +607,7 @@ class BaseWebView(Gtk.Window):
 
     def handle_client_connection(self, fd: int, condition: GLib.IOCondition):
         """GPT spit out this function and may have bugs."""
+        client_socket = None
         if condition & GLib.IO_IN:
             try:
                 client_socket, _ = self.socket.accept()
@@ -654,8 +712,9 @@ class BaseWebView(Gtk.Window):
 
             except Exception as e:
                 error_response = json.dumps({"status": "error", "message": str(e)})
-                client_socket.send(error_response.encode(TEXT_ENCODING))
-                client_socket.close()
+                if client_socket:
+                    client_socket.send(error_response.encode(TEXT_ENCODING))
+                    client_socket.close()
                 log_exception(f"Error handling client connection: {e}")
         return True
 
