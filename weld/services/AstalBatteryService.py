@@ -1,6 +1,4 @@
-##############################################################################
-############## BATTERY SERVICE (using Astal/Battery) #########################
-##############################################################################
+# BATTERY SERVICE (using Astal/Battery)
 import json
 import math
 from typing import (
