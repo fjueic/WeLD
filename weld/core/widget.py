@@ -159,7 +159,10 @@ class WidgetWindow(Gtk.Window):
 
         manager = self.view.get_user_content_manager()
         manager.register_script_message_handler(SCRIPT_MESSAGE_HANDLER)
-        manager.connect(SCRIPT_MESSAGE_RECEIVED_SIGNAL, self.on_js_message)
+        # manager.connect(SCRIPT_MESSAGE_RECEIVED_SIGNAL, self.on_js_message)
+        self.js_signal_id = manager.connect(
+            SCRIPT_MESSAGE_RECEIVED_SIGNAL, self.on_js_message
+        )
 
         self.configure_focus(self.config.focus)
 
@@ -501,8 +504,15 @@ class WidgetWindow(Gtk.Window):
             except KeyError:
                 log_warning(f"Binding {key} not found in base_webview bindings.")
         self.base_webview.refresh_binds()
+        try:
+            manager = self.view.get_user_content_manager()
+            if self.js_signal_id and manager.handler_is_connected(self.js_signal_id):
+                manager.disconnect(self.js_signal_id)
+        except Exception as e:
+            log_warning(f"Error disconnecting JS signal for {self.name}: {e}")
         self.destroy()
         log_debug(f"Destroying {self.name}")
+        log_warning(f"Destroying {self.name}")
         try:
             del self.base_webview.widgets[self.name]
         except KeyError:
