@@ -1,0 +1,215 @@
+<html>
+  <head>
+    <style>
+      :root {
+        --bg: #1e1e2e;
+        --fg: #cdd6f4;
+        --input-bg: #313244;
+        --accent: #89b4fa;
+        --error: #f38ba8;
+        --success: #a6e3a1;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background-color: var(--bg);
+        color: var(--fg);
+        padding: 20px;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        box-sizing: border-box;
+      }
+      h2 {
+        margin: 0;
+        font-size: 1.2em;
+        text-align: center;
+      }
+
+      #status-msg {
+        font-size: 0.9em;
+        text-align: center;
+        min-height: 1.2em;
+      }
+      .error {
+        color: var(--error);
+      }
+      .success {
+        color: var(--success);
+      }
+      .info {
+        color: var(--accent);
+      }
+
+      #input-area {
+        display: none;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      input {
+        background: var(--input-bg);
+        border: 1px solid #45475a;
+        color: var(--fg);
+        padding: 10px;
+        border-radius: 6px;
+        font-size: 1em;
+        outline: none;
+      }
+      input:focus {
+        border-color: var(--accent);
+      }
+
+      .btn-group {
+        display: flex;
+        gap: 10px;
+      }
+
+      button {
+        flex: 1;
+        padding: 10px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: filter 0.2s;
+      }
+      button:hover {
+        filter: brightness(1.1);
+      }
+
+      #btn-login {
+        background: var(--accent);
+        color: var(--bg);
+      }
+      #btn-cancel {
+        background: #45475a;
+        color: var(--fg);
+      }
+
+      #btn-start {
+        background: var(--accent);
+        color: var(--bg);
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Authentication Test</h2>
+    <div id="status-msg">Ready</div>
+
+    <button id="btn-start">Start Authentication</button>
+
+    <div id="input-area">
+      <div id="prompt-label">Password:</div>
+      <input
+        type="password"
+        id="password-input"
+        placeholder="Enter password..."
+      />
+      <div class="btn-group">
+        <button id="btn-cancel">Cancel</button>
+        <button id="btn-login">Login</button>
+      </div>
+    </div>
+
+    <script>
+      const statusEl = document.getElementById("status-msg");
+      const inputArea = document.getElementById("input-area");
+      const btnStart = document.getElementById("btn-start");
+      const passInput = document.getElementById("password-input");
+      const promptLabel = document.getElementById("prompt-label");
+
+      function setStatus(msg, type = "info") {
+        statusEl.textContent = msg;
+        statusEl.className = type;
+      }
+
+      function showPrompt(visible) {
+        inputArea.style.display = visible ? "flex" : "none";
+        btnStart.style.display = visible ? "none" : "block";
+        if (visible) {
+          passInput.value = "";
+          passInput.focus();
+        }
+      }
+
+      // --- Event Handlers ---
+      btnStart.addEventListener("click", () => {
+        setStatus("Starting...", "info");
+        window.weld({
+          type: "manual_state_update",
+          event: "AstalAuth:start",
+          args: {},
+        });
+      });
+
+      document.getElementById("btn-login").addEventListener("click", () => {
+        const secret = passInput.value;
+        window.weld({
+          type: "manual_state_update",
+          event: "AstalAuth:secret",
+          args: { secret: secret },
+        });
+        passInput.value = "";
+      });
+
+      document.getElementById("btn-cancel").addEventListener("click", () => {
+        window.weld({
+          type: "manual_state_update",
+          event: "AstalAuth:cancel",
+          args: {},
+        });
+        showPrompt(false);
+        setStatus("Cancelled", "error");
+      });
+
+      passInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") document.getElementById("btn-login").click();
+      });
+
+      // --- FIXED: Correctly handle PAM signals ---
+      window.addEventListener("weld:auth", (event) => {
+        const data = event.detail;
+        console.log("Auth Event:", data);
+
+        switch (data.status) {
+          // Case 1: Standard Password Prompt (Input Hidden)
+          case "prompt_hidden":
+            promptLabel.textContent = data.message;
+            passInput.type = "password"; // Mask characters
+            showPrompt(true);
+            setStatus("Waiting for input...", "info");
+            break;
+
+          // Case 2: Username/Question Prompt (Input Visible)
+          case "prompt_visible":
+            promptLabel.textContent = data.message;
+            passInput.type = "text"; // Show characters
+            showPrompt(true);
+            setStatus("Waiting for input...", "info");
+            break;
+
+          case "info":
+            setStatus(data.message, "info");
+            break;
+
+          case "error":
+            setStatus(data.message, "error");
+            break;
+
+          case "fail":
+            setStatus(data.message, "error");
+            showPrompt(false);
+            break;
+
+          case "success":
+            setStatus(data.message, "success");
+            showPrompt(false);
+            break;
+        }
+      });
+    </script>
+  </body>
+</html>
