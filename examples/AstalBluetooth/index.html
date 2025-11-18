@@ -1,0 +1,386 @@
+<html>
+  <head>
+    <style>
+      :root {
+        --bg: #1e1e2e;
+        --fg: #cdd6f4;
+        --item-bg: #313244;
+        --hover-bg: #45475a;
+        --accent: #89b4fa;
+        --connected: #a6e3a1;
+        --paired: #f9e2af;
+        --disabled: #6c7086;
+        --danger: #f38ba8;
+        --border: rgba(255, 255, 255, 0.1);
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+        user-select: none;
+      }
+
+      .header {
+        padding: 15px;
+        background: rgba(0, 0, 0, 0.2);
+        border-bottom: 1px solid var(--border);
+      }
+      .title-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+      h2 {
+        margin: 0;
+        font-size: 1.1em;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .adapter-controls {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      button {
+        background: var(--item-bg);
+        color: var(--fg);
+        border: 1px solid var(--border);
+        padding: 6px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.8em;
+        transition: all 0.2s;
+      }
+      button:hover {
+        background: var(--hover-bg);
+      }
+      button.active {
+        background: var(--accent);
+        color: var(--bg);
+        border-color: var(--accent);
+      }
+      button.danger {
+        color: var(--danger);
+        border-color: var(--danger);
+      }
+      button.danger:hover {
+        background: var(--danger);
+        color: var(--bg);
+      }
+
+      #device-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .device-item {
+        background: var(--item-bg);
+        border-radius: 8px;
+        padding: 10px;
+        border: 1px solid transparent;
+        transition: border-color 0.2s;
+      }
+      .device-item.connected {
+        border-color: var(--connected);
+      }
+
+      .device-main {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+      }
+
+      .device-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex: 1;
+        overflow: hidden;
+      }
+      .icon-box {
+        width: 32px;
+        height: 32px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2em;
+      }
+      .text-box {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .device-name {
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .device-meta {
+        font-size: 0.75em;
+        color: var(--disabled);
+        display: flex;
+        gap: 8px;
+      }
+
+      .badge {
+        font-size: 0.7em;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: rgba(0, 0, 0, 0.3);
+      }
+      .badge.green {
+        color: var(--connected);
+      }
+      .badge.yellow {
+        color: var(--paired);
+      }
+
+      .device-actions {
+        display: none;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+        gap: 5px;
+        flex-wrap: wrap;
+      }
+      .device-item.expanded .device-actions {
+        display: flex;
+      }
+
+      .action-btn {
+        flex: 1;
+        min-width: 70px;
+      }
+
+      .rename-box {
+        display: none;
+        gap: 5px;
+        margin-top: 5px;
+      }
+      .rename-box.visible {
+        display: flex;
+      }
+      input {
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px solid var(--border);
+        color: var(--fg);
+        padding: 5px;
+        border-radius: 4px;
+        flex: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div class="title-row">
+        <h2 id="adapter-name">Bluetooth</h2>
+        <button id="btn-power">OFF</button>
+      </div>
+
+      <div class="adapter-controls">
+        <button id="btn-scan">Scan</button>
+        <button id="btn-disc">Visible</button>
+        <button id="btn-pairable">Pairable</button>
+        <button id="btn-rename-adapter" style="margin-left: auto">✏️</button>
+      </div>
+
+      <div id="adapter-rename-box" class="rename-box">
+        <input
+          type="text"
+          id="adapter-rename-input"
+          placeholder="New adapter name..."
+        />
+        <button id="btn-save-adapter-name">Save</button>
+      </div>
+    </div>
+
+    <div id="device-list"></div>
+
+    <script>
+      const el = {
+        list: document.getElementById("device-list"),
+        name: document.getElementById("adapter-name"),
+        power: document.getElementById("btn-power"),
+        scan: document.getElementById("btn-scan"),
+        disc: document.getElementById("btn-disc"),
+        pairable: document.getElementById("btn-pairable"),
+        renameBtn: document.getElementById("btn-rename-adapter"),
+        renameBox: document.getElementById("adapter-rename-box"),
+        renameInput: document.getElementById("adapter-rename-input"),
+        saveAdapterName: document.getElementById("btn-save-adapter-name"),
+      };
+
+      let currentAdapterAddress = "";
+
+      const send = (event, args = {}) =>
+        window.weld({ type: "manual_state_update", event, args });
+
+      el.power.onclick = () => send("AstalBluetooth:toggle");
+
+      el.scan.onclick = () => {
+        const isScanning = el.scan.classList.contains("active");
+        send("AstalBluetooth:scan", { scanning: !isScanning });
+      };
+
+      el.disc.onclick = () => {
+        const isDisc = el.disc.classList.contains("active");
+        send("AstalBluetooth:set_discoverable", { val: !isDisc });
+      };
+
+      el.pairable.onclick = () => {
+        const isPair = el.pairable.classList.contains("active");
+        send("AstalBluetooth:set_pairable", { val: !isPair });
+      };
+
+      // Adapter Rename
+      el.renameBtn.onclick = () => {
+        el.renameBox.classList.toggle("visible");
+        if (el.renameBox.classList.contains("visible")) el.renameInput.focus();
+      };
+
+      el.saveAdapterName.onclick = () => {
+        const name = el.renameInput.value;
+        if (name) {
+          send("AstalBluetooth:rename_adapter", { name });
+          el.renameBox.classList.remove("visible");
+        }
+      };
+
+      function renderDevice(dev) {
+        const div = document.createElement("div");
+        div.className = `device-item ${dev.connected ? "connected" : ""}`;
+
+        let icon = "📱";
+        if (dev.icon) {
+          if (dev.icon.includes("audio-headset")) icon = "🎧";
+          else if (dev.icon.includes("audio-card")) icon = "🔊";
+          else if (dev.icon.includes("input-mouse")) icon = "🖱️";
+          else if (dev.icon.includes("input-keyboard")) icon = "⌨️";
+          else if (dev.icon.includes("computer")) icon = "💻";
+          else if (dev.icon.includes("phone")) icon = "📱";
+        }
+
+        const battery =
+          dev.battery > 0 ? ` • 🔋 ${Math.round(dev.battery)}%` : "";
+        const rssi = dev.rssi ? ` • 📶 ${dev.rssi}dBm` : "";
+
+        div.innerHTML = `
+            <div class="device-main" onclick="this.parentElement.classList.toggle('expanded')">
+                <div class="device-info">
+                    <div class="icon-box">${icon}</div>
+                    <div class="text-box">
+                        <div class="device-name">${dev.name}</div>
+                        <div class="device-meta">
+                            ${dev.connected ? '<span class="badge green">Connected</span>' : ""}
+                            ${dev.paired ? '<span class="badge yellow">Paired</span>' : ""}
+                            ${dev.trusted ? '<span class="badge">Trusted</span>' : ""}
+                            ${dev.blocked ? '<span class="badge">Blocked</span>' : ""}
+                        </div>
+                         <div class="device-meta">${dev.address}${battery}${rssi}</div>
+                    </div>
+                </div>
+                <div style="font-size: 0.8em; opacity: 0.5;">▼</div>
+            </div>
+            
+            <div class="device-actions">
+                <button class="action-btn ${dev.connected ? "active" : ""}" 
+                    onclick="send('${dev.connected ? "AstalBluetooth:disconnect" : "AstalBluetooth:connect"}', {address: '${dev.address}'})">
+                    ${dev.connected ? "Disconnect" : "Connect"}
+                </button>
+                
+                <button class="action-btn ${dev.paired ? "active" : ""}" 
+                    onclick="send('${dev.paired ? "AstalBluetooth:remove_device" : "AstalBluetooth:pair"}', {address: '${dev.address}'})">
+                    ${dev.paired ? "Forget" : "Pair"}
+                </button>
+                
+                <button class="action-btn ${dev.trusted ? "active" : ""}" 
+                    onclick="send('AstalBluetooth:trust', {address: '${dev.address}', val: ${!dev.trusted}})">
+                    Trust
+                </button>
+                
+                <button class="action-btn ${dev.blocked ? "danger" : ""}" 
+                    onclick="send('AstalBluetooth:block', {address: '${dev.address}', val: ${!dev.blocked}})">
+                    Block
+                </button>
+
+                 <button class="action-btn" onclick="promptRename('${dev.address}', '${dev.name}')">
+                    Rename
+                </button>
+            </div>
+        `;
+        return div;
+      }
+
+      function promptRename(addr, currentName) {
+        const newName = prompt("Rename device:", currentName);
+        if (newName) {
+          send("AstalBluetooth:rename_device", {
+            address: addr,
+            name: newName,
+          });
+        }
+      }
+
+      // --- Main Update Loop ---
+      window.addEventListener("weld:bluetooth", (e) => {
+        const state = e.detail;
+        if (!state) return;
+
+        if (state.adapter) {
+          el.name.textContent = state.adapter.name || "Bluetooth";
+          currentAdapterAddress = state.adapter.address;
+
+          // Power
+          el.power.textContent = state.adapter.powered ? "ON" : "OFF";
+          el.power.className = state.adapter.powered ? "active" : "";
+
+          // Scan
+          el.scan.textContent = state.adapter.scanning ? "Scanning..." : "Scan";
+          el.scan.className = state.adapter.scanning ? "active" : "";
+
+          // Discovery
+          el.disc.className = state.adapter.discoverable ? "active" : "";
+
+          // Pairable
+          el.pairable.className = state.adapter.pairable ? "active" : "";
+        }
+
+        const expandedItems = new Set();
+        document
+          .querySelectorAll(".device-item.expanded .device-name")
+          .forEach((el) => expandedItems.add(el.innerText));
+
+        el.list.innerHTML = "";
+
+        if (state.devices) {
+          state.devices.forEach((dev) => {
+            const item = renderDevice(dev);
+            if (expandedItems.has(dev.name)) {
+              item.classList.add("expanded");
+            }
+            el.list.appendChild(item);
+          });
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -2,7 +2,7 @@ import signal
 
 from .core.widget import BaseWebView  # Assuming this is your BaseWebView import
 from .gi_modules import GLib, Gtk
-from .log import log_info
+from .log import log_info, setup_logger
 
 
 def shutdown_handler(base_view_instance):
@@ -16,6 +16,7 @@ def shutdown_handler(base_view_instance):
 
 
 def main():
+    setup_logger()
     log_info("Starting WeLD...")
     base_view = BaseWebView()
     GLib.unix_signal_add(

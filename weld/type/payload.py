@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Callable, List, Literal, Optional, Tuple, Union
+from typing import Any, Callable, List, Literal, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field, root_validator
 
@@ -37,4 +37,4 @@ class JSMessage(BaseModel):
     event: Optional[str] = None
     focus: Optional[FocusType] = Field(default=FocusType.ON_DEMAND)
     config_layer: Optional[ConfigureGTKLayerShellPayloadData] = None
-    args: Optional[dict[str, str]] = {}
+    args: Optional[dict[str, Any]] = {}
