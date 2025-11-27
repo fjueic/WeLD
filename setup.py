@@ -39,6 +39,7 @@ class BuildCExec(build_py):
             "Gdk.pyi",
             "GLib.pyi",
             "Gtk.pyi",
+            "Gio.pyi",
             # "GtkLayerShell.pyi",
             # "WebKit.pyi",
         ]

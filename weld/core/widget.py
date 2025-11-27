@@ -4,7 +4,7 @@ import importlib.resources
 import json
 import os
 import socket
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Union
 
 from pydantic import ValidationError, parse_obj_as
 
@@ -21,7 +21,7 @@ from ..constants import (
     WELD_BIND,
     WIDGET_DIR,
 )
-from ..gi_modules import Gdk, GLib, Gtk, GtkLayerShell, WebKit2
+from ..gi_modules import Gdk, Gio, GLib, Gtk, GtkLayerShell, WebKit2
 from ..log import log_debug, log_error, log_exception, log_info, log_warning
 from ..type import (
     AnchorType,
@@ -70,6 +70,7 @@ class WidgetWindow(Gtk.Window):
         self.processes = []
         self.states = []
         self.bindings = []
+        self.allowedRoutes = []
 
         if not self._load_config_file():
             return
@@ -105,6 +106,14 @@ class WidgetWindow(Gtk.Window):
             return False
 
         super().set_title(self.config.title)
+        self.config.allowedRoutes.append(self.path)
+        for i in range(len(self.config.allowedRoutes)):
+            route = self.config.allowedRoutes[i]
+            if isinstance(route, str):
+                normalized_route = os.path.normpath(route)
+                absolute_route = os.path.abspath(normalized_route)
+                self.config.allowedRoutes[i] = absolute_route
+
         return True
 
     def _load_binds(self, binds_list):
@@ -129,7 +138,7 @@ class WidgetWindow(Gtk.Window):
 
         settings = self.view.get_settings()
         settings.set_property("enable-offline-web-application-cache", False)
-        # ... (all other settings) ...
+        settings.set_property("enable-developer-extras", self.config.devTool)
 
         if self.config.url:
             file_uri = self.config.url
@@ -138,7 +147,8 @@ class WidgetWindow(Gtk.Window):
             if not os.path.exists(local_file_path):
                 log_error(f"File not found: {local_file_path}")
                 # We can probably just continue, it will load an error page
-            file_uri = f"file://{os.path.abspath(local_file_path)}"
+            # file_uri = f"file://{os.path.abspath(local_file_path)}"
+            file_uri = f"weld://{local_file_path}"
 
         log_info(f"Loading URI: {file_uri}")
         self.view.load_uri(file_uri)
@@ -188,7 +198,7 @@ class WidgetWindow(Gtk.Window):
         """Handle messages sent from JavaScript to the WebView."""
 
         data = message.get_js_value().to_string()
-        # print(f"Received JS message: {data}")
+        print(f"Received JS message: {data}")
         try:
             data = json.loads(data)
             data = JSMessage(**data)
@@ -338,6 +348,8 @@ class WidgetWindow(Gtk.Window):
 
         if data.reserved_space:
             GtkLayerShell.set_exclusive_zone(self, data.reserved_space)
+        else:
+            GtkLayerShell.set_exclusive_zone(self, -1)
 
     def enable_input_masking(self):
         """Enable input masking for the WebView."""
@@ -434,6 +446,7 @@ class WidgetWindow(Gtk.Window):
                         )
                         stop_callback, handlers = instance.start()
                         self.processes.append(stop_callback)
+                        self.processes.insert(0, stop_callback)  # stop first on close
                         self.manual_states.update(handlers)
                         log_info(f"Started service {state.event}")
                     except Exception as e:
@@ -565,6 +578,9 @@ class BaseWebView(Gtk.Window):
     def __init__(self, no_ipc=False):
         super().__init__(title="Base WebView")
         self.view = WebKit2.WebView()
+        self.view.get_context().register_uri_scheme(
+            "weld", self._on_weld_scheme_request, None
+        )
 
         self.socket_path: str = SOCKET_PATH
 
@@ -572,6 +588,100 @@ class BaseWebView(Gtk.Window):
             self._setup_ipc_socket()
         self.widgets = {}
         self.bindings = {}
+
+    def _on_weld_scheme_request(self, request, user_data=None):
+        """
+        Handles weld:// URI requests.
+        Determines which widget initiated the request.
+        """
+        uri = request.get_uri()
+        # path = request.get_path()
+        path = uri[7:]  # 7 is len("weld://")
+
+        print(uri)
+        print(path)
+
+        # 1. Identify the WebView initiating the request
+        initiating_webview = request.get_web_view()
+
+        calling_widget: Optional[WidgetWindow] = None
+
+        # 2. Reverse lookup: Find which WidgetWindow owns this WebView
+        # We iterate over your stored widgets to find the match
+        for name, widget_window in self.widgets.items():
+            if widget_window.view == initiating_webview:
+                calling_widget = widget_window
+                break
+
+        if calling_widget:
+            log_info(f"URI Request '{uri}' came from widget: {calling_widget.name}")
+
+            # If URI is weld://icon.png, looks in ~/.config/weld/widgets/<name>/icon.png
+            # If URI is weld:///absolute/path, looks in /absolute/path
+            if path.startswith("/"):  # interpreting as absolute path from root
+                # validate against allowedRoutes
+                normalized_path = os.path.normpath(path)
+
+                for routes in calling_widget.config.allowedRoutes or []:
+                    if isinstance(routes, str) and normalized_path.startswith(routes):
+                        break
+                    elif callable(routes) and routes(path):
+                        break
+                else:
+                    log_warning(
+                        f"Access to path '{path}' denied by allowedRoutes for widget: {calling_widget.name}"
+                    )
+                    request.finish_error(
+                        GLib.Error.new_literal(
+                            Gio.io_error_quark(),
+                            "Access denied by allowedRoutes",
+                            Gio.IOErrorEnum.NOT_FOUND,
+                        )
+                    )
+                    return
+                final_path = path  # absolute path
+            else:  # relative path
+                final_path = os.path.join(calling_widget.path, path.lstrip("/"))
+            self._finish_request_with_file(request, final_path)
+        else:
+            # Could not identify the calling widget
+            log_warning(f"URI Request '{uri}' from unknown source or BaseWebView")
+            request.finish_error(
+                GLib.Error.new_literal(
+                    Gio.io_error_quark(),
+                    "Widget not found",
+                    Gio.IOErrorEnum.NOT_FOUND,
+                )
+            )
+
+    def _finish_request_with_file(self, request, file_path):
+        """Helper to finish the request by reading a local file."""
+        file = Gio.File.new_for_path(file_path)
+
+        try:
+            # Read file stream
+            stream = file.read(None)
+
+            # Determine content type (mime type)
+            # You might want a more robust mime sniffer here
+            content_type = "application/octet-stream"
+            if file_path.endswith(".css"):
+                content_type = "text/css"
+            elif file_path.endswith(".js"):
+                content_type = "text/javascript"
+            elif file_path.endswith(".png"):
+                content_type = "image/png"
+            elif file_path.endswith(".svg"):
+                content_type = "image/svg+xml"
+            elif file_path.endswith(".html"):
+                content_type = "text/html"
+
+            # Send data back to WebKit
+            request.finish(stream, -1, content_type)
+
+        except GLib.Error as e:
+            log_error(f"Failed to read file {file_path}: {e.message}")
+            request.finish_error(e)
 
     def refresh_binds(self):
         from weld.Hyprlang import convert_code_to_hyprlang
@@ -601,7 +711,7 @@ class BaseWebView(Gtk.Window):
                     + f"r\"\"\"{weld_sender_path} {widget} {event}\"\"\"\n"
                 )
 
-            # print(t)
+            print(t)
             f.write("# Auto generated by weld\n" + convert_code_to_hyprlang(t))
         run_detached_cmd("hyprctl reload")
 

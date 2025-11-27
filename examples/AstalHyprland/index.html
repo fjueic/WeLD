@@ -1,0 +1,283 @@
+<html>
+  <head>
+    <style>
+      :root {
+        --bg-color: rgba(30, 30, 46, 0.9);
+        --border-color: rgba(180, 190, 254, 0.2);
+        --text-main: #cdd6f4;
+        --text-sub: #a6adc8;
+        --accent: #89b4fa;
+        --accent-urgent: #f38ba8;
+        --highlight: rgba(255, 255, 255, 0.05);
+      }
+
+      body {
+        font-family: "JetBrainsMono Nerd Font", "Roboto", monospace;
+        font-size: 13px;
+        color: var(--text-main);
+        background: var(--bg-color);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 16px;
+        width: 380px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        user-select: none;
+      }
+
+      h3 {
+        margin: 0 0 4px 0;
+        font-size: 14px;
+        color: var(--accent);
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 4px;
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .section {
+        background: rgba(0, 0, 0, 0.2);
+        padding: 8px;
+        border-radius: 6px;
+      }
+
+      .kv-grid {
+        display: grid;
+        grid-template-columns: 100px 1fr;
+        gap: 4px;
+      }
+      .label {
+        color: var(--text-sub);
+      }
+      .value {
+        font-weight: bold;
+        text-overflow: ellipsis;
+        overflow: hidden;
+        white-space: nowrap;
+      }
+
+      /* Lists (Monitors/Workspaces) */
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      li {
+        padding: 4px;
+        border-radius: 4px;
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 2px;
+      }
+      li.focused {
+        background: var(--accent);
+        color: #1e1e2e;
+        font-weight: bold;
+      }
+
+      /* Client Info Box */
+      #client-box {
+        border-left: 3px solid var(--text-sub);
+        padding-left: 8px;
+        transition: border-color 0.2s;
+      }
+      #client-box.active {
+        border-color: var(--accent);
+      }
+
+      /* Action Buttons */
+      .button-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 4px;
+      }
+      button {
+        background: var(--highlight);
+        border: 1px solid var(--border-color);
+        color: var(--text-main);
+        padding: 6px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        flex: 1;
+        transition: 0.1s;
+      }
+      button:hover {
+        background: var(--accent);
+        color: #1e1e2e;
+      }
+      button:active {
+        transform: translateY(1px);
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="section">
+      <h3>
+        System
+        <span style="font-size: 0.8em; opacity: 0.7"
+          >Cursor: <span id="val-cursor">0, 0</span></span
+        >
+      </h3>
+      <div class="button-row">
+        <button onclick="reqSync()">Force Sync</button>
+        <button onclick="reqDispatch('exec', 'foot')">Spawn Foot</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Monitors</h3>
+      <ul id="list-monitors"></ul>
+    </div>
+
+    <div class="section">
+      <h3>Workspaces</h3>
+      <ul id="list-workspaces"></ul>
+    </div>
+
+    <div class="section">
+      <h3>Active Client</h3>
+      <div id="client-box" class="kv-grid">
+        <span class="label">Class:</span>
+        <span id="cl-class" class="value">-</span>
+        <span class="label">Title:</span>
+        <span id="cl-title" class="value">-</span>
+        <span class="label">PID:</span>
+        <span id="cl-pid" class="value">-</span>
+        <span class="label">Size:</span>
+        <span id="cl-size" class="value">-</span>
+      </div>
+      <div class="button-row">
+        <button
+          onclick="reqDispatch('killactive', '')"
+          style="
+            color: var(--accent-urgent);
+            border-color: var(--accent-urgent);
+          "
+        >
+          Kill Active
+        </button>
+        <button onclick="reqDispatch('togglefloating', '')">Float</button>
+      </div>
+    </div>
+
+    <script>
+      const els = {
+        cursor: document.getElementById("val-cursor"),
+        monitors: document.getElementById("list-monitors"),
+        workspaces: document.getElementById("list-workspaces"),
+        client: {
+          box: document.getElementById("client-box"),
+          class: document.getElementById("cl-class"),
+          title: document.getElementById("cl-title"),
+          pid: document.getElementById("cl-pid"),
+          size: document.getElementById("cl-size"),
+        },
+      };
+
+      function reqDispatch(dispatcher, arg) {
+        const safeArg = arg === undefined || arg === null ? "" : String(arg);
+
+        console.log(`Dispatching: ${dispatcher} ${safeArg}`);
+
+        if (typeof window.weld === "function") {
+          window.weld({
+            type: "manual_state_update",
+            event: "AstalHyprland:dispatch",
+            args: {
+              dispatcher: dispatcher,
+              arg: safeArg,
+            },
+          });
+        }
+      }
+
+      function reqSync() {
+        if (typeof window.weld === "function") {
+          window.weld({
+            type: "manual_state_update",
+            event: "AstalHyprland:sync",
+            args: {},
+          });
+        }
+      }
+
+      window.addEventListener("weld:hyprland", (event) => {
+        const state = event.detail;
+
+        if (state.cursorPosition) {
+          els.cursor.textContent = `${state.cursorPosition.x}, ${state.cursorPosition.y}`;
+        }
+
+        if (state.monitors) {
+          els.monitors.innerHTML = "";
+          state.monitors.forEach((mon) => {
+            const li = document.createElement("li");
+            if (mon.focused) li.classList.add("focused");
+
+            li.style.cursor = "pointer";
+            li.title = `Focus monitor ${mon.name}`;
+            li.onclick = () => reqDispatch("focusmonitor", mon.id);
+
+            const nameSpan = document.createElement("span");
+            nameSpan.textContent = `${mon.name} (${mon.model})`;
+
+            const resSpan = document.createElement("span");
+            resSpan.textContent = `${mon.width}x${mon.height} @ ${mon.refresh_rate}Hz`;
+            resSpan.style.opacity = "0.7";
+
+            li.appendChild(nameSpan);
+            li.appendChild(resSpan);
+            els.monitors.appendChild(li);
+          });
+        }
+
+        if (state.workspaces) {
+          els.workspaces.innerHTML = "";
+          const sorted = state.workspaces.sort((a, b) => a.id - b.id);
+
+          sorted.forEach((ws) => {
+            if (ws.id < 0) return;
+
+            const li = document.createElement("li");
+
+            if (state.focusedWorkspace && ws.id === state.focusedWorkspace.id) {
+              li.classList.add("focused");
+            }
+
+            li.style.cursor = "pointer";
+            li.title = `Switch to Workspace ${ws.id}`;
+            li.onclick = () => reqDispatch("workspace", ws.id);
+
+            const nameSpan = document.createElement("span");
+            nameSpan.textContent = `WS ${ws.name}`;
+
+            const countSpan = document.createElement("span");
+            countSpan.textContent = `${ws.clients_count} wins`;
+            countSpan.style.opacity = "0.7";
+
+            li.appendChild(nameSpan);
+            li.appendChild(countSpan);
+            els.workspaces.appendChild(li);
+          });
+        }
+
+        if (state.focusedClient) {
+          const c = state.focusedClient;
+          els.client.box.classList.add("active");
+          els.client.class.textContent = c.class || "Unknown";
+          els.client.title.textContent = c.title || "...";
+          els.client.pid.textContent = c.pid;
+          els.client.size.textContent = `${c.width}x${c.height}`;
+        } else {
+          els.client.box.classList.remove("active");
+          els.client.class.textContent = "Desktop";
+          els.client.title.textContent = "-";
+          els.client.pid.textContent = "-";
+          els.client.size.textContent = "-";
+        }
+      });
+    </script>
+  </body>
+</html>

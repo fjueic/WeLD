@@ -40,6 +40,8 @@ class Config(BaseModel):
     height: Optional[int] = None
     width: Optional[int] = None
     transparency: Optional[bool] = False
+    devTool: Optional[bool] = False
+    allowedRoutes: Optional[List[Union[str, Callable[[str], bool]]]] = []
 
 
 class UpdateStrategy(str, Enum):

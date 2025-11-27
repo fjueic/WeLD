@@ -1,0 +1,168 @@
+<!doctype html>
+<html>
+  <head>
+    <style>
+      #bars {
+        width: 100%;
+        height: 200px;
+        display: flex;
+        justify-content: center;
+        background-color: black;
+        flex-direction: row;
+        align-items: stretch;
+      }
+      .bar {
+        width: 20px;
+        height: 100%;
+        margin: 2px;
+        background-color: blue;
+        transform-origin: bottom;
+        transition:
+          transform 50ms ease-out,
+          background-color 50ms linear;
+        transform: scaleY(0);
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        width: 1000px;
+        background-color: black;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="bars">
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+    </div>
+    <button id="toggle">Toggle</button>
+
+    <script>
+      let reader = null;
+      let isRunning = false;
+      let shouldBeActive = true;
+      const bars = document.getElementsByClassName("bar");
+
+      document.getElementById("toggle").addEventListener("click", () => {
+        window.weld({
+          type: "manual_state_update",
+          event: "cava:toggle",
+        });
+        shouldBeActive = !shouldBeActive;
+        if (shouldBeActive && !isRunning) startStream();
+      });
+
+      async function startStream() {
+        if (isRunning) return;
+        isRunning = true;
+
+        try {
+          console.log("Connecting to stream...");
+          const response = await fetch("cava://stream");
+
+          if (!response.body) throw new Error("No body");
+
+          reader = response.body.getReader();
+          const decoder = new TextDecoder("utf-8");
+          let buffer = "";
+
+          while (true) {
+            const { value, done } = await reader.read();
+
+            if (done) {
+              console.log("Stream EOF");
+              break;
+            }
+
+            const chunk = decoder.decode(value, { stream: true });
+            buffer += chunk;
+            const lines = buffer.split("\n");
+            buffer = lines.pop();
+
+            for (const line of lines) {
+              if (line.trim()) {
+                const values = line.split(",");
+                updateUI(values);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("Stream disconnected:", err);
+        } finally {
+          isRunning = false;
+          reader = null;
+
+          if (shouldBeActive) {
+            console.log("Retrying in 1s...");
+            setTimeout(startStream, 1000);
+          } else {
+            updateUI([]);
+          }
+        }
+      }
+
+      function updateUI(data) {
+        if (data.length === 0) {
+          for (let b of bars) b.style.transform = "scaleY(0)";
+          return;
+        }
+
+        for (let i = 0; i < bars.length; i++) {
+          if (!bars[i]) break;
+          // Cava gives 0-1000, scaleY needs 0-1
+          const val = (data[i] || 0) / 1000;
+          bars[i].style.transform = `scaleY(${val})`;
+
+          const c = Math.floor(val * 255);
+          bars[i].style.backgroundColor = `rgb(${c}, ${255 - c}, 200)`;
+        }
+      }
+
+      window.addEventListener("weld:cava", (e) => {
+        if (e.detail && typeof e.detail.active !== "undefined") {
+          shouldBeActive = e.detail.active;
+
+          if (shouldBeActive && !isRunning) {
+            startStream();
+          } else if (!shouldBeActive && isRunning) {
+            if (reader) reader.cancel();
+          }
+        }
+      });
+
+      startStream();
+    </script>
+  </body>
+</html>
