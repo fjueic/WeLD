@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        :root { --bg: #1e1e2e; --fg: #cdd6f4; --accent: #89b4fa; --card: #313244; --border: rgba(255,255,255,0.1); }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--fg); padding: 15px; width: 400px; margin: 0; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 10px; }
+        .section-title { font-size: 0.7em; font-weight: 800; opacity: 0.4; text-transform: uppercase; margin: 20px 0 10px 0; letter-spacing: 1px; }
+        
+        .card { background: var(--card); border-radius: 12px; padding: 15px; margin-bottom: 10px; border: 1px solid transparent; }
+        .card.default { border-color: var(--accent); background: rgba(137, 180, 250, 0.05); }
+        .card.running { border-left: 4px solid #a6e3a1; }
+        
+        .row { display: flex; align-items: flex-start; gap: 12px; }
+        .info { flex: 1; min-width: 0; }
+        .name { font-weight: 700; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+        .tech-info { font-size: 0.7em; opacity: 0.35; font-family: monospace; display: block; margin-top: 2px; }
+
+        .route-picker {
+            width: 100%; margin-top: 12px; padding: 8px; background: rgba(0,0,0,0.3);
+            color: var(--fg); border: 1px solid var(--border); border-radius: 6px; font-size: 0.75em; outline: none;
+        }
+
+        .controls { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+        input[type="range"] { flex: 1; accent-color: var(--accent); height: 5px; cursor: pointer; }
+        
+        button { background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--fg); border-radius: 6px; padding: 4px 10px; font-size: 0.7em; cursor: pointer; }
+        button.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+        
+        .btn-mute { background: none; border: none; font-size: 0.75em; color: var(--fg); cursor: pointer; padding: 0; width: 80px; text-align: left; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <span style="font-weight: 900; letter-spacing: 0.5px;">AUDIO ENGINE</span>
+        <div style="display:flex; gap:6px;">
+            <button id="sc-1" onclick="send('AstalWp:set_scale', {scale: 1})">Cubic</button>
+            <button id="sc-0" onclick="send('AstalWp:set_scale', {scale: 0})">Linear</button>
+        </div>
+    </div>
+
+    <div class="section-title">Active Playback</div>
+    <div id="playback"></div>
+
+    <div class="section-title">Active Recording</div>
+    <div id="recording"></div>
+
+    <div class="section-title">Output Hardware</div>
+    <div id="speakers"></div>
+
+    <div class="section-title">Input Hardware</div>
+    <div id="microphones"></div>
+
+    <script>
+        const send = (event, args = {}) => window.weld({ type: "manual_state_update", event, args });
+        let currentData = null;
+
+        window.addEventListener("weld:wp", (e) => {
+            currentData = e.detail;
+            if (!currentData) return;
+
+            document.getElementById("sc-1").className = currentData.scale === 1 ? "active" : "";
+            document.getElementById("sc-0").className = currentData.scale === 0 ? "active" : "";
+
+            renderStreams("playback", currentData.playback, currentData.speakers);
+            renderStreams("recording", currentData.recording, currentData.microphones);
+            renderHardware("speakers", currentData.speakers);
+            renderHardware("microphones", currentData.microphones);
+        });
+
+        function renderStreams(containerId, streams, targets) {
+            const container = document.getElementById(containerId);
+            if (streams.length === 0) {
+                container.innerHTML = '<div style="opacity:0.2; padding:10px; font-size:0.75em;">No active streams</div>';
+                return;
+            }
+
+            container.innerHTML = streams.map(s => `
+                <div class="card ${s.state === 3 ? 'running' : ''}">
+                    <div class="row">
+                        <button class="btn-mute" onclick="send('AstalWp:set_mute', {id: ${s.id}, mute: ${!s.mute}})">
+                            ${s.mute ? '[MUTED]' : '[ACTIVE]'}
+                        </button>
+                        <div class="info">
+                            <span class="name">${s.displayName}</span>
+                            <span class="tech-info">${s.technicalName}</span>
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <input type="range" min="0" max="1.5" step="0.01" value="${s.volume}" 
+                               oninput="send('AstalWp:set_volume', {id: ${s.id}, volume: this.value})">
+                        <div style="font-size:0.7em; width:35px; text-align:right;">${Math.round(s.volume * 100)}%</div>
+                    </div>
+                    <select class="route-picker" onchange="send('AstalWp:move_stream', {stream_id: ${s.id}, target_id: this.value})">
+                        ${targets.map(t => `<option value="${t.id}" ${s.targetId === t.id ? 'selected' : ''}>Route to: ${t.displayName}</option>`).join('')}
+                    </select>
+                </div>
+            `).join('');
+        }
+
+        function renderHardware(containerId, nodes) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = nodes.map(n => `
+                <div class="card ${n.isDefault ? 'default' : ''}" onclick="${!n.isDefault ? `send('AstalWp:set_default', {id: ${n.id}})` : ''}">
+                    <div class="row">
+                        <button class="btn-mute" onclick="event.stopPropagation(); send('AstalWp:set_mute', {id: ${n.id}, mute: ${!n.mute}})">
+                            ${n.mute ? '[MUTED]' : '[ACTIVE]'}
+                        </button>
+                        <div class="info">
+                            <span class="name">${n.displayName}</span>
+                            <span class="tech-info">${n.technicalName}</span>
+                        </div>
+                        ${n.isDefault ? '<span style="font-size:0.6em; font-weight:bold; color:var(--accent); letter-spacing:1px;">DEFAULT</span>' : ''}
+                    </div>
+                    <div class="controls">
+                        <input type="range" min="0" max="1.5" step="0.01" value="${n.volume}" 
+                               onclick="event.stopPropagation()"
+                               oninput="send('AstalWp:set_volume', {id: ${n.id}, volume: this.value})">
+                        <div style="font-size:0.7em; width:35px; text-align:right;">${Math.round(n.volume * 100)}%</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+    </script>
+</body>
+</html>

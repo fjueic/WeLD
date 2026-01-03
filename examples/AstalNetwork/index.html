@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        :root { --bg: #1e1e2e; --fg: #cdd6f4; --accent: #b4befe; --item-bg: #313244; }
+        body { font-family: sans-serif; background: var(--bg); color: var(--fg); padding: 10px; margin: 0; }
+        .card { background: var(--item-bg); border-radius: 8px; padding: 12px; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.05); }
+        .row { display: flex; justify-content: space-between; align-items: center; }
+        .btn { background: var(--accent); color: var(--bg); border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
+        .ap-list { margin-top: 10px; max-height: 300px; overflow-y: auto; }
+        .ap-item { padding: 10px; border-radius: 4px; margin-bottom: 5px; background: rgba(0,0,0,0.2); cursor: pointer; display: flex; justify-content: space-between; }
+        .ap-item.active { border-left: 3px solid var(--accent); background: rgba(180, 190, 254, 0.1); }
+        .status-tag { font-size: 0.8em; padding: 2px 6px; border-radius: 10px; background: #45475a; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="row">
+            <h3 style="margin:0">Network</h3>
+            <button id="wifi-toggle" class="btn">Toggle Wi-Fi</button>
+        </div>
+    </div>
+
+    <div id="wired-card" class="card" style="display:none">
+        <div class="row">
+            <span>🌐 Wired Ethernet</span>
+            <span id="wired-status" class="status-tag">Connected</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="row">
+            <strong>Wi-Fi Networks</strong>
+            <button class="btn btn-outline" onclick="send('AstalNetwork:wifi_scan')">Scan</button>
+        </div>
+        <div id="ap-list" class="ap-list">
+            </div>
+    </div>
+
+    <script>
+        const send = (event, args = {}) => window.weld({ type: "manual_state_update", event, args });
+
+        document.getElementById("wifi-toggle").onclick = () => send("AstalNetwork:wifi_toggle");
+
+        window.addEventListener("weld:network", (e) => {
+            const state = e.detail;
+            if (!state) return;
+
+            // Update Wired Status
+            const wiredCard = document.getElementById("wired-card");
+            if (state.wired && state.wired.state === 100) { // ACTIVATED
+                wiredCard.style.display = "block";
+                document.getElementById("wired-status").textContent = "Connected (" + state.wired.speed + "Mb/s)";
+            } else {
+                wiredCard.style.display = "none";
+            }
+
+            // Update WiFi Toggle Appearance
+            const wifiBtn = document.getElementById("wifi-toggle");
+            if (state.wifi) {
+                wifiBtn.textContent = state.wifi.enabled ? "Disable Wi-Fi" : "Enable Wi-Fi";
+                wifiBtn.style.opacity = state.wifi.enabled ? "1" : "0.5";
+
+                // Render Access Points
+                const list = document.getElementById("ap-list");
+                list.innerHTML = "";
+                
+                if (state.wifi.enabled) {
+                    state.wifi.access_points.forEach(ap => {
+                        const div = document.createElement("div");
+                        div.className = `ap-item ${ap.active ? 'active' : ''}`;
+                        div.innerHTML = `
+                            <div>
+                                ${ap.active ? '<b>' : ''}${ap.ssid || '<i>Hidden Network</i>'}${ap.active ? '</b>' : ''}
+                                ${ap.locked ? ' <small>🔒</small>' : ''}
+                            </div>
+                            <div style="opacity:0.7">${ap.strength}%</div>
+                        `;
+                        div.onclick = () => {
+                            if (ap.active) {
+                                if (confirm("Disconnect from " + ap.ssid + "?")) send("AstalNetwork:wifi_disconnect");
+                            } else {
+                                const pass = ap.locked ? prompt("Enter Password for " + ap.ssid) : null;
+                                if (!ap.locked || pass) send("AstalNetwork:wifi_connect", { ssid: ap.ssid, password: pass });
+                            }
+                        };
+                        list.appendChild(div);
+                    });
+                } else {
+                    list.innerHTML = "<center style='opacity:0.5; padding:20px;'>Wi-Fi is turned off</center>";
+                }
+            }
+        });
+    </script>
+</body>
+</html>

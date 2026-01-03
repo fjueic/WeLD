@@ -1,0 +1,230 @@
+<!doctype html>
+<html>
+  <head>
+    <style>
+      body {
+        margin: 0;
+        padding: 10px;
+        overflow-y: auto; /* Changed to allow scrolling if many players */
+        font-family: monospace;
+        color: white;
+        background: rgba(0, 0, 0, 0.8);
+        border-radius: 10px;
+      }
+      #container {
+        display: flex;
+        flex-direction: column;
+        gap: 15px; /* Space between player cards */
+      }
+      .player-card {
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .art {
+        width: 50px;
+        height: 50px;
+        background-size: cover;
+        background-position: center;
+        border-radius: 5px;
+        margin-bottom: 8px;
+        background-color: #222;
+      }
+      .title {
+        font-weight: bold;
+        font-size: 1em;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        width: 100%;
+      }
+      .artist {
+        color: #aaa;
+        font-size: 0.8em;
+        margin-bottom: 8px;
+      }
+      .btns {
+        display: flex;
+        gap: 8px;
+      }
+      button {
+        cursor: pointer;
+        background: #444;
+        border: none;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.8em;
+      }
+      button:hover {
+        background: #666;
+      }
+      .progress-container {
+        width: 100%;
+        height: 4px;
+        background: #333;
+        border-radius: 2px;
+        margin-top: 8px;
+        cursor: pointer;
+      }
+      .progress-fill {
+        width: 0%;
+        height: 100%;
+        background: #1db954; /* Spotify green-ish for visibility */
+        border-radius: 2px;
+      }
+      .time-lbl {
+        width: 100%;
+        font-size: 0.7em;
+        color: #ccc;
+        margin-top: 2px;
+        display: flex;
+        justify-content: space-between;
+      }
+      .empty-msg {
+        text-align: center;
+        padding: 20px;
+        color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container">
+      <div class="empty-msg">No Media Active</div>
+    </div>
+
+    <script>
+      let activePlayers = [];
+      let lastUpdateTimestamp = Date.now();
+      let animationFrame = null;
+
+      window.addEventListener("weld:mpris", (e) => {
+        if (e.detail.detail === "reload") {
+          window.location.reload();
+          return;
+        }
+
+        const players = e.detail.players;
+        if (!players || players.length === 0) {
+          activePlayers = [];
+          renderAll();
+          return;
+        }
+
+        activePlayers = players;
+        lastUpdateTimestamp = Date.now();
+        renderAll();
+      });
+
+      function renderAll() {
+        const container = document.getElementById("container");
+
+        if (activePlayers.length === 0) {
+          container.innerHTML = '<div class="empty-msg">No Media Active</div>';
+          return;
+        }
+
+        container.innerHTML = activePlayers
+          .map(
+            (p, index) => `
+          <div class="player-card" id="player-${index}">
+            <div class="art" style="background-image: ${getArtUrl(p)}"></div>
+            <div class="title">${p.title || "Unknown"}</div>
+            <div class="artist">${p.artist || "Unknown"}</div>
+            
+            <div class="btns">
+              <button onclick="cmd('prev', '${p.bus_name}')">Prev</button>
+              <button onclick="cmd('play_pause', '${p.bus_name}')">${p.playback_status === "Playing" ? "Pause" : "Play"}</button>
+              <button onclick="cmd('next', '${p.bus_name}')">Next</button>
+            </div>
+
+            <div class="progress-container" onclick="seek(event, ${index})">
+              <div class="progress-fill" id="fill-${index}"></div>
+            </div>
+            <div class="time-lbl">
+              <span id="cur-${index}">0:00</span>
+              <span>${formatTime(p.length)}</span>
+            </div>
+          </div>
+        `,
+          )
+          .join("");
+      }
+
+      function getArtUrl(p) {
+        let url = p.cover_art || p.art_url;
+        if (!url) return "none";
+        if (url.startsWith("file://")) url = url.substring(7);
+        if (url.startsWith("/")) url = "weld://" + url;
+        return `url('${url}')`;
+      }
+
+      function updateBars() {
+        animationFrame = requestAnimationFrame(updateBars);
+        if (activePlayers.length === 0) return;
+
+        const now = Date.now();
+        const elapsedSec = (now - lastUpdateTimestamp) / 1000;
+
+        activePlayers.forEach((p, i) => {
+          let currentPos = p.position;
+          if (p.playback_status === "Playing") {
+            currentPos += elapsedSec * (p.rate || 1.0);
+          }
+
+          // Clamp
+          if (currentPos < 0) currentPos = 0;
+          if (currentPos > p.length) currentPos = p.length;
+
+          const pct = (currentPos / (p.length || 1)) * 100;
+
+          const fill = document.getElementById(`fill-${i}`);
+          const curTxt = document.getElementById(`cur-${i}`);
+
+          if (fill) fill.style.width = `${pct}%`;
+          if (curTxt) curTxt.innerText = formatTime(currentPos);
+        });
+      }
+
+      function formatTime(sec) {
+        if (!sec || isNaN(sec)) return "0:00";
+        const m = Math.floor(sec / 60);
+        const s = Math.floor(sec % 60);
+        return `${m}:${s < 10 ? "0" + s : s}`;
+      }
+
+      function cmd(action, busName) {
+        window.weld({
+          type: "manual_state_update",
+          event: `Astalmpris:${action}`,
+          args: { bus_name: busName },
+        });
+      }
+
+      function seek(e, index) {
+        const p = activePlayers[index];
+        const bar = e.currentTarget;
+        const rect = bar.getBoundingClientRect();
+        const pct = (e.clientX - rect.left) / rect.width;
+        const targetPos = pct * p.length;
+
+        window.weld({
+          type: "manual_state_update",
+          event: "Astalmpris:set_position",
+          args: { bus_name: p.bus_name, position: targetPos },
+        });
+
+        // Optimistic UI update for this specific player
+        activePlayers[index].position = targetPos;
+        lastUpdateTimestamp = Date.now();
+      }
+
+      // Start animation loop
+      updateBars();
+    </script>
+  </body>
+</html>

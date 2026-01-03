@@ -1,0 +1,80 @@
+<html>
+<head>
+    <style>
+        :root { --low: #94e2d5; --normal: #89b4fa; --critical: #f38ba8; --bg: #1e1e2e; --fg: #cdd6f4; }
+        body { font-family: 'Segoe UI', sans-serif; background: transparent; color: var(--fg); padding: 15px; width: 350px; }
+        
+        /* Daemon Controls */
+        .controls { background: #313244; padding: 10px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; border: 1px solid rgba(255,255,255,0.1); }
+        
+        /* Notification Card */
+        .notif { background: #313244; border-radius: 12px; padding: 15px; margin-bottom: 12px; position: relative; border-left: 5px solid var(--normal); box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s; }
+        .notif:hover { transform: scale(1.02); }
+        .notif.urgency-0 { border-left-color: var(--low); opacity: 0.8; }
+        .notif.urgency-2 { border-left-color: var(--critical); background: #453131; animation: pulse 2s infinite; }
+        
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0px rgba(243, 139, 168, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(243, 139, 168, 0); } 100% { box-shadow: 0 0 0 0px rgba(243, 139, 168, 0); } }
+
+        .header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 0.85em; opacity: 0.7; }
+        .app-icon { width: 22px; height: 22px; border-radius: 4px; object-fit: contain; }
+        
+        .hero-img { width: 100%; max-height: 160px; object-fit: cover; border-radius: 8px; margin: 10px 0; }
+        
+        .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 12px; }
+        .btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--fg); padding: 6px; border-radius: 6px; cursor: pointer; font-size: 0.8em; }
+        .btn:hover { background: var(--normal); color: var(--bg); }
+        
+        .close-btn { position: absolute; top: 10px; right: 10px; background: none; border: none; color: white; cursor: pointer; opacity: 0.3; }
+        .close-btn:hover { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <button class="btn" id="toggle-dnd">DND: Off</button>
+        <button class="btn" onclick="send('AstalNotifd:clear_all')">Clear All</button>
+        <button class="btn" onclick="send('AstalNotifd:send_test', {summary: 'Manual Test', body: 'This proves send_notification works!'})">Send Test</button>
+    </div>
+
+    <div id="notif-list"></div>
+
+    <script>
+        const send = (event, args = {}) => window.weld({ type: "manual_state_update", event, args });
+
+        window.addEventListener("weld:notifd", (e) => {
+            const data = e.detail;
+            if (!data) return;
+
+            // Update Daemon State
+            document.getElementById("toggle-dnd").textContent = `DND: ${data.daemon.dontDisturb ? "On" : "Off"}`;
+            document.getElementById("toggle-dnd").onclick = () => send('AstalNotifd:set_dnd', {val: !data.daemon.dontDisturb});
+
+            // Update Notifications
+            const list = document.getElementById("notif-list");
+            list.innerHTML = data.notifications.map(n => `
+                <div class="notif urgency-${n.urgency}" onclick="send('AstalNotifd:invoke', {id: ${n.id}, action_id: 'default'})">
+                    <button class="close-btn" onclick="event.stopPropagation(); send('AstalNotifd:dismiss', {id: ${n.id}})">Clear X</button>
+                    
+                    <div class="header">
+                        ${n.appIcon ? `<img class="app-icon" src="${n.appIcon}">` : '🔔'}
+                        <span>${n.appName}</span>
+                        ${n.resident ? '<small>(Resident)</small>' : ''}
+                    </div>
+
+                    <div style="font-weight:bold">${n.summary}</div>
+                    <div style="font-size:0.9em; margin-top:4px;">${n.body}</div>
+
+                    ${n.image ? `<img class="hero-img" src="${n.image}">` : ''}
+
+                    <div class="actions">
+                        ${n.actions.map(a => `
+                            <button class="btn" onclick="event.stopPropagation(); send('AstalNotifd:invoke', {id: ${n.id}, action_id: '${a.id}'})">
+                                ${a.label}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        :root { --bg: #1e1e2e; --fg: #cdd6f4; --accent: #cba6f7; --hover: #313244; --border: rgba(255,255,255,0.1); }
+        body { font-family: 'Inter', sans-serif; background: transparent; margin: 0; padding: 0; }
+        
+        #tray { display: flex; gap: 4px; padding: 5px; }
+        .tray-item { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; }
+        .tray-item:hover { background: var(--hover); }
+        .icon-main { width: 18px; height: 18px; pointer-events: none; }
+
+        /* Floating Menu */
+        #menu {
+            position: fixed; display: none; background: var(--bg);
+            border: 1px solid var(--border); border-radius: 10px;
+            padding: 8px 0; min-width: 240px; z-index: 10000;
+            box-shadow: 0 15px 45px rgba(0,0,0,0.6); color: var(--fg);
+        }
+
+        .menu-node { position: relative; }
+        .menu-item {
+            padding: 8px 16px; font-size: 13px; cursor: pointer;
+            display: flex; align-items: center; gap: 14px;
+        }
+        .menu-item:hover { background: var(--accent); color: var(--bg); }
+        .menu-item.disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+
+        /* Alignment Columns */
+        .col-check { width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; }
+        .col-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .col-arrow { width: 12px; font-size: 10px; opacity: 0.4; text-align: right; }
+
+        /* CSS Checkmark */
+        .check-mark {
+            width: 8px; height: 4px; border-left: 2.5px solid var(--accent); border-bottom: 2.5px solid var(--accent);
+            transform: rotate(-45deg); margin-top: -3px;
+        }
+        .menu-item:hover .check-mark { border-color: var(--bg); }
+        
+        /* Submenus */
+        .submenu {
+            display: none; position: absolute; left: 100%; top: -8px;
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 10px; min-width: 220px; padding: 8px 0;
+            box-shadow: 10px 10px 30px rgba(0,0,0,0.4);
+        }
+        .menu-node:hover > .submenu { display: block; }
+        .sep { height: 1px; background: var(--border); margin: 8px 0; }
+    </style>
+</head>
+<body>
+    <div id="tray"></div>
+    <div id="menu"></div>
+
+    <script>
+        const send = (event, args = {}) => window.weld({ type: "manual_state_update", event, args });
+        const menuEl = document.getElementById("menu");
+        let activeId = null;
+
+        window.addEventListener("weld:tray", (e) => {
+            if (!e.detail) return;
+            const tray = document.getElementById("tray");
+            tray.innerHTML = e.detail.items.map(item => `
+                <div class="tray-item" onmousedown="handleClick(event, ${JSON.stringify(item).replace(/"/g, '&quot;')})">
+                    <img class="icon-main" src="${item.icon}">
+                </div>
+            `).join('');
+
+            if (menuEl.style.display === "block" && activeId) {
+                const active = e.detail.items.find(i => i.id === activeId);
+                if (active) renderLevel(active.menu, menuEl);
+            }
+        });
+
+        function renderLevel(items, container) {
+            if (!items || items.length === 0) {
+                container.innerHTML = '<div class="menu-item" style="opacity:0.3">Empty</div>';
+                return;
+            }
+            container.innerHTML = items.map(m => createItemHtml(m)).join('');
+        }
+
+        function createItemHtml(m) {
+            if (!m.label) return '<div class="sep"></div>';
+            const hasSub = m.submenu && m.submenu.length > 0;
+            const cleanLabel = m.label.replace(/_/g, '');
+
+            return `
+                <div class="menu-node">
+                    <div class="menu-item ${!m.enabled ? 'disabled' : ''}" 
+                         onclick="handleInvoke(event, '${m.action}', ${hasSub})">
+                        <div class="col-check">${m.isChecked ? '<div class="check-mark"></div>' : ''}</div>
+                        <div class="col-label">${cleanLabel}</div>
+                        <div class="col-arrow">${hasSub ? '▶' : ''}</div>
+                    </div>
+                    ${hasSub ? `<div class="submenu">${m.submenu.map(s => createItemHtml(s)).join('')}</div>` : ''}
+                </div>
+            `;
+        }
+
+        function handleClick(e, item) {
+            const coords = { id: item.id, x: Math.round(e.screenX), y: Math.round(e.screenY) };
+            if (e.button === 0) {
+                send('AstalTray:activate', coords);
+            } else if (e.button === 2) {
+                activeId = item.id;
+                send('AstalTray:about_to_show', { id: item.id });
+                menuEl.style.display = "block";
+                menuEl.style.left = e.clientX + "px";
+                
+                const bottomDist = window.innerHeight - e.clientY;
+                menuEl.style.top = (bottomDist < 400 ? e.clientY - 300 : e.clientY) + "px";
+                
+                renderLevel(item.menu, menuEl);
+            }
+        }
+
+        function handleInvoke(e, action, hasSub) {
+            e.stopPropagation();
+            if (hasSub || !action || action === "null") return;
+            send('AstalTray:invoke_action', { id: activeId, action });
+            menuEl.style.display = "none";
+        }
+
+        window.onclick = () => menuEl.style.display = "none";
+        document.oncontextmenu = e => e.preventDefault();
+    </script>
+</body>
+</html>
