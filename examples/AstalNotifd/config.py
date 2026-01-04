@@ -2,7 +2,7 @@ from weld.services.AstalNotifdService import AstalNotifdService
 from weld.type import UpdateStrategy
 
 config = {
-    "title": "astal-network",
+    "title": "astal-notifd",
     "layer": "overlay",
     "anchors": ["top", "right"],
     "width": 400,

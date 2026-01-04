@@ -1,11 +1,11 @@
-from weld.services.AstalTrayService import AstalTrayService
+from weld.services.TrayService import TrayService
 from weld.type import UpdateStrategy
 
 config = {
-    "title": "astal-network",
+    "title": "tray",
     "layer": "overlay",
-    "anchors": ["top", "right"],
-    "width": 400,
+    "anchors": ["bottom", "right"],
+    "width": 700,
     "height": 750,
     "focus": "on_demand",
     # "transparency": True,
@@ -18,7 +18,7 @@ states = [
     {
         "event": "tray",
         "updateStrategy": UpdateStrategy.SERVICE,
-        "service_factory": AstalTrayService,
+        "service_factory": TrayService,
         "service_arguments": {},  # No args needed
     }
 ]

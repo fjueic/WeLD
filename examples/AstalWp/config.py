@@ -2,7 +2,7 @@ from weld.services.AstalWpService import AstalWpService
 from weld.type import UpdateStrategy
 
 config = {
-    "title": "astal-network",
+    "title": "astal-wp",
     "layer": "overlay",
     "anchors": ["top", "right"],
     "width": 400,

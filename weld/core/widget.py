@@ -531,7 +531,7 @@ class WidgetWindow(Gtk.Window):
             del self.base_webview.widgets[self.name]
         except KeyError:
             log_warning(
-                f"Widget {self.name} not found in base_webview widgets. If you called close() manually, this is expected and known bug. If not, please check your code."
+                f"Widget {self.name} not found in base_webview widgets. This is expected and known bug."
             )
         return False
 
@@ -598,7 +598,6 @@ class BaseWebView(Gtk.Window):
         uri = request.get_uri()
         # path = request.get_path()
         path = uri[7:]  # 7 is len("weld://")
-
 
         # 1. Identify the WebView initiating the request
         initiating_webview = request.get_web_view()

@@ -1,0 +1,203 @@
+<!doctype html>
+<html>
+  <head>
+    <style>
+      :root {
+        --bg: #1e1e2e;
+        --fg: #cdd6f4;
+        --accent: #cba6f7;
+        --hover: #313244;
+        --border: rgba(255, 255, 255, 0.1);
+      }
+      body {
+        font-family: sans-serif;
+        background: transparent;
+        margin: 0;
+        padding: 0;
+      }
+
+      #tray {
+        display: flex;
+        gap: 8px;
+        padding: 5px;
+      }
+      .tray-icon {
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: 0.2s;
+      }
+      .tray-icon:hover {
+        background: var(--hover);
+      }
+      .icon-img {
+        width: 20px;
+        height: 20px;
+        pointer-events: none;
+      }
+
+      #menu {
+        position: fixed;
+        display: none;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 8px 0;
+        min-width: 260px;
+        z-index: 10000;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+        color: var(--fg);
+      }
+
+      .menu-node {
+        position: relative;
+      }
+      .menu-item {
+        padding: 10px 16px;
+        font-size: 13px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .menu-item:hover {
+        background: var(--accent);
+        color: var(--bg);
+      }
+      .menu-item.disabled {
+        opacity: 0.3;
+        pointer-events: none;
+      }
+
+      .check-box {
+        width: 18px;
+        display: flex;
+        justify-content: center;
+      }
+      .label-text {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-weight: 500;
+      }
+      .arrow-right {
+        width: 12px;
+        font-size: 10px;
+        opacity: 0.4;
+        text-align: right;
+      }
+
+      .v-draw {
+        width: 9px;
+        height: 5px;
+        border-left: 2.5px solid var(--accent);
+        border-bottom: 2.5px solid var(--accent);
+        transform: rotate(-45deg);
+        margin-top: -3px;
+      }
+      .menu-item:hover .v-draw {
+        border-color: var(--bg);
+      }
+
+      .submenu {
+        display: none;
+        position: absolute;
+        left: 100%;
+        top: -8px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        min-width: 220px;
+        padding: 8px 0;
+        box-shadow: 10px 10px 30px rgba(0, 0, 0, 0.5);
+      }
+      .menu-node:hover > .submenu {
+        display: block;
+      }
+      .sep {
+        height: 1px;
+        background: rgba(255, 255, 255, 0.1);
+        margin: 8px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="tray"></div>
+    <div id="menu"></div>
+
+    <script>
+      const send = (event, args = {}) =>
+        window.weld({ type: "manual_state_update", event, args });
+      const menuEl = document.getElementById("menu");
+      let activeBusId = null;
+
+      window.addEventListener("weld:tray", (e) => {
+        if (!e.detail) return;
+        const tray = document.getElementById("tray");
+        tray.innerHTML = e.detail.items
+          .map(
+            (item) => `
+                <div class="tray-icon" onmousedown="handleClick(event, ${JSON.stringify(item).replace(/"/g, "&quot;")})">
+                    <img class="icon-img" src="${item.icon}">
+                </div>
+            `,
+          )
+          .join("");
+
+        if (menuEl.style.display === "block" && activeBusId) {
+          const active = e.detail.items.find((i) => i.id === activeBusId);
+          if (active)
+            menuEl.innerHTML = active.menu
+              .map((m) => buildMenuHtml(m))
+              .join("");
+        }
+      });
+
+      function buildMenuHtml(m) {
+        if (!m.label || m.label === "") return '<div class="sep"></div>';
+        const hasSub = m.submenu && m.submenu.length > 0;
+
+        return `
+                <div class="menu-node">
+                    <div class="menu-item ${!m.enabled ? "disabled" : ""}" 
+                         onclick="invoke(event, ${m.id}, ${hasSub})">
+                        <div class="check-box">${m.isChecked ? '<div class="v-draw"></div>' : ""}</div>
+                        <div class="label-text">${m.label}</div>
+                        <div class="arrow-right">${hasSub ? "▶" : ""}</div>
+                    </div>
+                    ${hasSub ? `<div class="submenu">${m.submenu.map((s) => buildMenuHtml(s)).join("")}</div>` : ""}
+                </div>
+            `;
+      }
+
+      function handleClick(e, item) {
+        if (e.button === 0) {
+          send("Tray:activate", { id: item.id });
+        } else if (e.button === 2) {
+          activeBusId = item.id;
+          menuEl.style.display = "block";
+          menuEl.style.left = e.clientX + "px";
+          menuEl.style.top =
+            (e.clientY > window.innerHeight / 2 ? e.clientY - 300 : e.clientY) +
+            "px";
+          menuEl.innerHTML = item.menu.map((m) => buildMenuHtml(m)).join("");
+        }
+      }
+
+      function invoke(e, menuId, hasSub) {
+        e.stopPropagation();
+        if (hasSub) return;
+        send("Tray:invoke", { bus_id: activeBusId, menu_id: menuId });
+        menuEl.style.display = "none";
+      }
+
+      window.onclick = () => (menuEl.style.display = "none");
+      document.oncontextmenu = (e) => e.preventDefault();
+    </script>
+  </body>
+</html>
